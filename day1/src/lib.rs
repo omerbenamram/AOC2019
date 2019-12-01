@@ -23,8 +23,7 @@ fn calculate_fuel_recursively(module_mass: usize) -> usize {
     total_fuel
 }
 
-/// What is the sum of fuel required for all of your modules?
-pub fn part_1(input: &str) -> Result<usize> {
+fn fuel_for_modules(input: &str, fuel_calculator: impl Fn(usize) -> usize) -> Result<usize> {
     let mut sum: usize = 0;
 
     for line in input.lines() {
@@ -32,7 +31,7 @@ pub fn part_1(input: &str) -> Result<usize> {
             .parse::<usize>()
             .with_context(|| format!("Failed to convert `{}` to a numerical value.", line))?;
 
-        let fuel_required = calculate_fuel(fuel_numerical);
+        let fuel_required = fuel_calculator(fuel_numerical);
 
         sum = sum
             .checked_add(fuel_required)
@@ -43,22 +42,13 @@ pub fn part_1(input: &str) -> Result<usize> {
 }
 
 /// What is the sum of fuel required for all of your modules?
+pub fn part_1(input: &str) -> Result<usize> {
+    fuel_for_modules(input, calculate_fuel)
+}
+
+/// What is the sum of fuel required for all of your modules?
 pub fn part_2(input: &str) -> Result<usize> {
-    let mut sum: usize = 0;
-
-    for line in input.lines() {
-        let fuel_numerical = line
-            .parse::<usize>()
-            .with_context(|| format!("Failed to convert `{}` to a numerical value.", line))?;
-
-        let fuel_required = calculate_fuel_recursively(fuel_numerical);
-
-        sum = sum
-            .checked_add(fuel_required)
-            .with_context(|| "`sum` needs a bigger integer value than `usize`")?;
-    }
-
-    Ok(sum)
+    fuel_for_modules(input, calculate_fuel_recursively)
 }
 
 #[test]
