@@ -5,6 +5,20 @@ authors = ["Omer Ben-Amram <omerbenamram@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "day1"
+path = "./src/lib.rs"
+
+[[bin]]
+name = "day1"
+path = "./src/main.rs"
 
 [dependencies]
 anyhow = "1.0.25"
+
+[dev-dependencies]
+criterion = "*"
+
+[[bench]]
+name = "bench"
+harness = false
