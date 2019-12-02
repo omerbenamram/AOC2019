@@ -10,7 +10,7 @@ fn benchmark(c: &mut Criterion) {
     });
 
     c.bench_function("2019 day 2 part two", |b| {
-        b.iter(|| day2::part_2(&s, 19_690_720));
+        b.iter(|| day2::part_2(&s));
     });
 }
 

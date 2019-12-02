@@ -10,7 +10,7 @@ fn main() -> Result<()> {
         .context("Failed to read input from stdin")?;
 
     println!("Part 1 - {}", part_1(&input)?);
-    println!("Part 2 - {}", part_2(&input, 19690720)?);
+    println!("Part 2 - {}", part_2(&input)?);
 
     Ok(())
 }

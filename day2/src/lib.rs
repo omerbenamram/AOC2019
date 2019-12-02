@@ -1,8 +1,8 @@
 use anyhow::{bail, Context, Error, Result};
 use itertools::Itertools;
 use std::convert::TryFrom;
+use std::fmt;
 use std::str::FromStr;
-use std::{fmt, mem};
 
 enum OpCode {
     Add,
@@ -119,13 +119,13 @@ pub fn part_1(input: &str) -> Result<i32> {
     computer.output()
 }
 
-pub fn part_2(input: &str, value: i32) -> Result<i32> {
+pub fn part_2(input: &str) -> Result<i32> {
     for noun in 0..=99 {
         for verb in 0..=99 {
             let mut computer = ByteCodeInterpreter::from_str(input)?;
             computer.load_input(noun, verb)?;
             computer.run_until_halt()?;
-            if computer.output()? == value {
+            if computer.output()? == 19690720 {
                 return Ok((100 * noun) + verb);
             }
         }
