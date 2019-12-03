@@ -1,0 +1,1 @@
+Get-Content .\input\wires | cargo run --release --
