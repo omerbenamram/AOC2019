@@ -1,10 +1,8 @@
-use crate::Direction::{Down, Up};
 use anyhow::{bail, Context, Error, Result};
-use itertools::{all, Itertools};
+
 use std::cmp;
 use std::collections::{HashMap, HashSet};
-use std::convert::TryFrom;
-use std::ops::{Range, RangeBounds, RangeInclusive};
+use std::ops::RangeInclusive;
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
@@ -209,7 +207,7 @@ fn find_intersections(lines_1: &Vec<Line>, lines_2: &Vec<Line>) -> HashSet<Point
 }
 
 pub fn part_1(input: &str) -> Result<i32> {
-    let mut wires = input
+    let wires = input
         .lines()
         .map(Wire::from_str)
         .collect::<Result<Vec<Wire>>>()?;
@@ -238,7 +236,7 @@ pub fn part_1(input: &str) -> Result<i32> {
 }
 
 pub fn part_2(input: &str) -> Result<i32> {
-    let mut wires = input
+    let wires = input
         .lines()
         .map(Wire::from_str)
         .collect::<Result<Vec<Wire>>>()?;
@@ -250,7 +248,7 @@ pub fn part_2(input: &str) -> Result<i32> {
     let wire_1: &Wire = &wires[0];
     let wire_2: &Wire = &wires[1];
 
-    let mut lines_1 = wire_1.iter_lines().collect();
+    let lines_1 = wire_1.iter_lines().collect();
     let lines_2 = wire_2.iter_lines().collect();
 
     let intersections = find_intersections(&lines_1, &lines_2);
