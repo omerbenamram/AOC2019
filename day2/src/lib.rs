@@ -23,6 +23,7 @@ impl TryFrom<i32> for OpCode {
     }
 }
 
+#[derive(Clone)]
 struct ByteCodeInterpreter(Vec<i32>);
 
 impl ByteCodeInterpreter {
@@ -120,12 +121,16 @@ pub fn part_1(input: &str) -> Result<i32> {
 }
 
 pub fn part_2(input: &str) -> Result<i32> {
+    let computer = ByteCodeInterpreter::from_str(input)?;
+
     for noun in 0..=99 {
         for verb in 0..=99 {
-            let mut computer = ByteCodeInterpreter::from_str(input)?;
-            computer.load_input(noun, verb)?;
-            computer.run_until_halt()?;
-            if computer.output()? == 19690720 {
+            // Clone computer here to avoid reparsing input.
+            let mut attempt = computer.clone();
+            attempt.load_input(noun, verb)?;
+            attempt.run_until_halt()?;
+
+            if attempt.output()? == 19690720 {
                 return Ok((100 * noun) + verb);
             }
         }
