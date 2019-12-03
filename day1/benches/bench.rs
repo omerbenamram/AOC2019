@@ -1,5 +1,4 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use day1::{part_1, part_2};
 use std::fs;
 
 fn benchmark(c: &mut Criterion) {
