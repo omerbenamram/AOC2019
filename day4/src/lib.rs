@@ -1,55 +1,54 @@
 use anyhow::{bail, Context, Error, Result};
-use std::ops::RangeInclusive;
 
-fn parse_range(input: &str) -> Result<RangeInclusive<i32>> {
-    let range: Vec<i32> = input
+type Password = [u8; 6];
+
+pub fn parse_range(input: &str) -> Result<(u32, u32)> {
+    let range: Vec<u32> = input
         .trim()
         .split("-")
         .map(|num| {
             num.parse()
                 .context(format!("Failed to parse input `{}`", num))
         })
-        .collect::<Result<Vec<i32>>>()?;
+        .collect::<Result<Vec<u32>>>()?;
 
     if range.len() != 2 {
         bail!("Expected exactly two numbers.");
     }
 
-    Ok(range[0]..=range[1])
+    Ok((range[0], range[1]))
 }
 
-pub fn part_1(input: &str) -> Result<i32> {
-    let range = parse_range(input)?;
-    let mut count = 0;
-    for n in range {
-        if check_number(n) {
-            count += 1;
-        }
+pub fn part_1(low: u32, hi: u32) -> u32 {
+    (low..=hi)
+        .map(num_to_arr)
+        .filter(|&n| check_password(n))
+        .count() as u32
+}
+
+pub fn part_2(low: u32, hi: u32) -> u32 {
+    (low..=hi)
+        .map(num_to_arr)
+        .filter(|&n| check_password_2(n))
+        .count() as u32
+}
+
+fn num_to_arr(mut n: u32) -> Password {
+    let mut res: Password = [0; 6];
+    for digit in res.iter_mut().rev() {
+        *digit = (n % 10) as u8;
+        n /= 10;
     }
-    Ok(count)
+    res
 }
 
-pub fn part_2(input: &str) -> Result<i32> {
-    let range = parse_range(input)?;
-    let mut count = 0;
-    for n in range {
-        if check_number_updated(n) {
-            count += 1;
-        }
-    }
-    Ok(count)
-}
-
-fn check_number_updated(mut n: i32) -> bool {
+fn check_password_2(pass: Password) -> bool {
     let mut largest_digit_seen = 0;
     let mut following_digits_seen = false;
     let mut digit_group_size = 1;
     let mut previous_digit = None;
 
-    while n != 0 {
-        let digit = n % 10;
-        n /= 10;
-
+    for &digit in pass.iter() {
         if digit >= largest_digit_seen {
             largest_digit_seen = digit;
         } else {
@@ -80,15 +79,12 @@ fn check_number_updated(mut n: i32) -> bool {
     }
 }
 
-fn check_number(mut n: i32) -> bool {
+fn check_password(pass: Password) -> bool {
     let mut largest_digit_seen = 0;
     let mut following_digits_seen = false;
     let mut previous_digit = None;
 
-    while n != 0 {
-        let digit = n % 10;
-        n /= 10;
-
+    for &digit in pass.iter() {
         if digit >= largest_digit_seen {
             largest_digit_seen = digit;
         } else {
@@ -119,15 +115,15 @@ mod tests {
 
     #[test]
     fn test_part_1() {
-        assert_eq!(check_number(111111), true);
-        assert_eq!(check_number(223450), false);
-        assert_eq!(check_number(123789), false);
+        assert_eq!(check_password([1, 1, 1, 1, 1, 1]), true);
+        assert_eq!(check_password([2, 2, 3, 4, 5, 0]), false);
+        assert_eq!(check_password([1, 2, 3, 7, 8, 9]), false);
     }
 
     #[test]
     fn test_part_2() {
-        assert_eq!(check_number_updated(111111), false, "111111");
-        assert_eq!(check_number_updated(123444), false, "123444");
-        assert_eq!(check_number_updated(111122), true, "111122");
+        assert_eq!(check_password_2([1, 1, 1, 1, 1, 1]), false, "111111");
+        assert_eq!(check_password_2([1, 2, 3, 4, 4, 4]), false, "123444");
+        assert_eq!(check_password_2([1, 1, 1, 1, 2, 2]), true, "111122");
     }
 }

@@ -3,3 +3,4 @@ members = ["day1", "day2", "day3", "day4"]
 
 [profile.release]
 debug = true
+opt-level = 3

@@ -5,11 +5,11 @@ fn benchmark(c: &mut Criterion) {
     let s = fs::read_to_string(r#"input\range"#).unwrap();
 
     c.bench_function("2019 day 4 part one", |b| {
-        b.iter(|| day4::part_1(&s));
+        b.iter(|| day4::part_1(234_208, 765_869));
     });
 
     c.bench_function("2019 day 4 part two", |b| {
-        b.iter(|| day4::part_2(&s));
+        b.iter(|| day4::part_2(234_208, 765_869));
     });
 }
 
