@@ -40,14 +40,21 @@ pub fn part_2(input: &str) -> Result<i32> {
     Ok(count)
 }
 
-fn check_number_updated(n: i32) -> bool {
-    let mut digits_seen = [false; 10];
+fn check_number_updated(mut n: i32) -> bool {
+    let mut largest_digit_seen = 0;
     let mut following_digits_seen = false;
     let mut digit_group_size = 1;
     let mut previous_digit = None;
 
-    for digit in n.to_string().chars() {
-        let digit = digit.to_digit(10).expect("This can only be a digit.");
+    while n != 0 {
+        let digit = n % 10;
+        n /= 10;
+
+        if digit >= largest_digit_seen {
+            largest_digit_seen = digit;
+        } else {
+            return false;
+        }
 
         // Check following digits
         if let Some(prev) = previous_digit.take() {
@@ -62,20 +69,6 @@ fn check_number_updated(n: i32) -> bool {
             }
         }
 
-        // Check if digit is smallest we've seen so far.
-        let digits_so_far_are_increasing = digits_seen.iter().enumerate().all(|(d, was_seen)| {
-            if *was_seen && (d > digit as usize) {
-                false
-            } else {
-                true
-            }
-        });
-
-        if !digits_so_far_are_increasing {
-            return false;
-        }
-
-        digits_seen[digit as usize] = true;
         previous_digit = Some(digit);
     }
 
@@ -87,13 +80,20 @@ fn check_number_updated(n: i32) -> bool {
     }
 }
 
-fn check_number(n: i32) -> bool {
-    let mut digits_seen = [false; 10];
+fn check_number(mut n: i32) -> bool {
+    let mut largest_digit_seen = 0;
     let mut following_digits_seen = false;
     let mut previous_digit = None;
 
-    for digit in n.to_string().chars() {
-        let digit = digit.to_digit(10).expect("This can only be a digit.");
+    while n != 0 {
+        let digit = n % 10;
+        n /= 10;
+
+        if digit >= largest_digit_seen {
+            largest_digit_seen = digit;
+        } else {
+            return false;
+        }
 
         // Check following digits
         if let Some(prev) = previous_digit.take() {
@@ -102,20 +102,6 @@ fn check_number(n: i32) -> bool {
             }
         }
 
-        // Check if digit is smallest we've seen so far.
-        let digits_so_far_are_increasing = digits_seen.iter().enumerate().all(|(d, was_seen)| {
-            if *was_seen && (d > digit as usize) {
-                false
-            } else {
-                true
-            }
-        });
-
-        if !digits_so_far_are_increasing {
-            return false;
-        }
-
-        digits_seen[digit as usize] = true;
         previous_digit = Some(digit);
     }
 
