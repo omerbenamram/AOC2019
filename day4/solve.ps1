@@ -1,0 +1,1 @@
+Get-Content .\input\range | cargo run --release --
