@@ -1,9 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use std::fs;
 
 fn benchmark(c: &mut Criterion) {
-    let s = fs::read_to_string(r#"input\range"#).unwrap();
-
     c.bench_function("2019 day 4 part one", |b| {
         b.iter(|| day4::part_1(234_208, 765_869));
     });

@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Error, Result};
+use anyhow::{bail, Context, Result};
 
 type Password = [u8; 6];
 
