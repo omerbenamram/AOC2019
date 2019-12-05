@@ -1,0 +1,28 @@
+[package]
+name = "day5"
+version = "0.1.0"
+authors = ["Omer Ben-Amram <omerbenamram@gmail.com>"]
+edition = "2018"
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "day5"
+path = "./src/lib.rs"
+
+[[bin]]
+name = "day5"
+path = "./src/main.rs"
+
+[dependencies]
+anyhow = "1.0.25"
+itertools = "*"
+log = "*"
+env_logger = "*"
+
+[dev-dependencies]
+criterion = "*"
+
+[[bench]]
+name = "bench"
+harness = false
