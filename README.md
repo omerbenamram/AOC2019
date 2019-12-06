@@ -8,3 +8,4 @@ Benched on my machine (AMD Ryzen 3900x)
 | 2        |  2.2us        | 1.6ms      |
 | 3        | 727.88 us     | 751.70 us  |
 | 4        | 960 us        | 980 us     |
+| 6        | 1ms           | 1.3 ms     |
