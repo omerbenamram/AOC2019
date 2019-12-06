@@ -1,5 +1,6 @@
 use anyhow::{bail, Context, Error, Result};
 use itertools::Itertools;
+use log::debug;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 type Vertex = String;
@@ -10,7 +11,7 @@ struct Graph {
     adjacency_list: HashMap<Vertex, Vec<Vertex>>,
 }
 
-/// Directed graph of orbiting planets.
+/// Graph of orbiting planets.
 impl Graph {
     pub fn new() -> Self {
         Graph {
@@ -23,43 +24,44 @@ impl Graph {
     }
 
     /// BFS to count all indirect orbits
-    pub fn count_indirect_orbits(&self) -> i32 {
+    pub fn bfs(&self, start: Vertex) -> HashMap<u32, HashSet<Vertex>> {
         let mut queue = VecDeque::new();
-        queue.push_back(CENTER_OF_MASS);
+        queue.push_back(&start);
 
         let mut visited = HashSet::new();
-        visited.insert(CENTER_OF_MASS);
+        visited.insert(&start);
 
-        let mut indirect_orbits = 0;
+        let mut node_to_depth = HashMap::new();
+        node_to_depth.insert(&start, 0);
         let mut layers = HashMap::new();
 
         while !queue.is_empty() {
-            println!("{:?}", &queue);
-            depth += 1;
+            debug!("{:?}", &queue);
             let v = queue.pop_front().expect("Queue is not empty");
 
             if let Some(neighbors) = self.adjacency_list.get(v) {
                 for neighbor in neighbors.iter() {
-                    if !visited.contains(neighbor.as_str()) {
+                    if !visited.contains(&neighbor) {
+                        let parent_depth = node_to_depth.get(v).expect("parent must exist").clone();
+                        let this_depth = parent_depth + 1;
+                        node_to_depth.insert(neighbor, this_depth);
+                        layers
+                            .entry(this_depth)
+                            .or_insert_with(HashSet::new)
+                            .insert(neighbor.clone());
+
                         visited.insert(neighbor);
-                        indirect_orbits += 1;
                         queue.push_back(neighbor)
                     }
                 }
             }
         }
-        dbg!(depth);
 
-        indirect_orbits
-    }
-
-    /// By the assumption that
-    pub fn count_direct_orbits(&self) -> i32 {
-        0
+        layers
     }
 }
 
-pub fn part_1(input: &str) -> Result<i32> {
+pub fn part_1(input: &str) -> Result<u32> {
     let mut g = Graph::new();
 
     for line in input.lines() {
@@ -73,13 +75,45 @@ pub fn part_1(input: &str) -> Result<i32> {
 
         // B orbits A translates to
         // B --> A
+        // We invert the edges to be able to iterate them from `COM`.
         g.add_edge(edge[0].to_owned(), edge[1].to_owned());
     }
 
-    dbg!(&g);
-    let indirect_orbits = g.count_indirect_orbits();
+    let bfs = g.bfs(CENTER_OF_MASS.to_string());
+    let mut total_orbits = 0;
+    for (k, v) in bfs {
+        total_orbits += (k * v.len() as u32)
+    }
 
-    Ok(indirect_orbits)
+    Ok(total_orbits)
+}
+
+pub fn part_2(input: &str) -> Result<u32> {
+    let mut g = Graph::new();
+
+    for line in input.lines() {
+        let edge: Vec<&str> = line.trim().split(")").collect();
+        if edge.len() != 2 {
+            bail!(
+                "Expected edge definition to be of pattern `A)B`, found `{}`",
+                line
+            );
+        }
+
+        // Orbital transfers don't care about direction
+        g.add_edge(edge[0].to_owned(), edge[1].to_owned());
+        g.add_edge(edge[1].to_owned(), edge[0].to_owned());
+    }
+
+    let bfs = g.bfs("YOU".to_string());
+
+    for (len, vertexes) in bfs {
+        if vertexes.contains(&"SAN".to_string()) {
+            return Ok(len - 2);
+        }
+    }
+
+    bail!("Path not found")
 }
 
 #[cfg(test)]
@@ -100,5 +134,24 @@ E)J
 J)K
 K)L";
         assert_eq!(part_1(input).unwrap(), 42);
+    }
+
+    #[test]
+    pub fn test_part2() {
+        let input = "\
+COM)B
+B)C
+C)D
+D)E
+E)F
+B)G
+G)H
+D)I
+E)J
+J)K
+K)L
+K)YOU
+I)SAN";
+        assert_eq!(part_2(input).unwrap(), 4);
     }
 }

@@ -1,1 +1,1 @@
-Get-Content .\input\opcodes | cargo run --release --
+Get-Content .\input\orbital_map | cargo run --release --
