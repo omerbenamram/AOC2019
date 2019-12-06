@@ -1,5 +1,4 @@
-use anyhow::{bail, Context, Error, Result};
-use itertools::Itertools;
+use anyhow::{bail, Result};
 use log::debug;
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -23,17 +22,25 @@ impl Graph {
         self.adjacency_list.entry(from).or_insert(vec![]).push(to);
     }
 
-    /// BFS to count all indirect orbits
+    /// Returns a map of paths from vertex `start` to each other vertex in the graph.
+    /// The key is the shortest path length.
     pub fn bfs(&self, start: Vertex) -> HashMap<u32, HashSet<Vertex>> {
         let mut queue = VecDeque::new();
         queue.push_back(&start);
 
+        // Although the graph in this question should not contain loops, better safe than sorry.
         let mut visited = HashSet::new();
         visited.insert(&start);
 
+        // Extra bookeeping to allow ourselves to keep track of depth
+        // while getting away with using a queue for BFS (instead of "list of lists")
         let mut node_to_depth = HashMap::new();
         node_to_depth.insert(&start, 0);
+
         let mut layers = HashMap::new();
+        let mut h = HashSet::new();
+        h.insert(start.clone());
+        layers.insert(0, h);
 
         while !queue.is_empty() {
             debug!("{:?}", &queue);
@@ -81,8 +88,10 @@ pub fn part_1(input: &str) -> Result<u32> {
 
     let bfs = g.bfs(CENTER_OF_MASS.to_string());
     let mut total_orbits = 0;
+
+    // we just count how many orbits are at each distance from `COM`
     for (k, v) in bfs {
-        total_orbits += (k * v.len() as u32)
+        total_orbits += k * v.len() as u32
     }
 
     Ok(total_orbits)
