@@ -411,8 +411,8 @@ mod tests {
     macro_rules! test_memory {
         ($prog: expr, $i:expr, $o: expr) => {
             let bytecode = IntcodeComputer::parse_program($prog).unwrap();
-            let q = VecDeque::from($i);
             let mut computer = IntcodeComputer::new(bytecode);
+            computer.write_to_input($i).unwrap();
 
             computer.run_until_halt().unwrap();
             assert_eq!(computer.to_string(), $o);
@@ -422,13 +422,21 @@ mod tests {
     macro_rules! test_output {
         ($prog: expr, $i:expr, $o: expr) => {
             let bytecode = IntcodeComputer::parse_program($prog).unwrap();
-            let q = VecDeque::from($i);
             let mut computer = IntcodeComputer::new(bytecode);
+            computer.write_to_input($i).unwrap();
 
             computer.run_until_halt().unwrap();
 
             assert_eq!(computer.into_output(), $o);
         };
+    }
+
+    #[test]
+    fn test_no_input() {
+        test_memory!("1,0,0,0,99", vec![], "2,0,0,0,99");
+        test_memory!("2,3,0,3,99", vec![], "2,3,0,6,99");
+        test_memory!("2,4,4,5,99,0", vec![], "2,4,4,5,99,9801");
+        test_memory!("1,1,1,4,99,5,6,0,99", vec![], "30,1,1,4,2,5,6,0,99");
     }
 
     #[test]
