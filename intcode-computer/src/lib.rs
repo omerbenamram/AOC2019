@@ -106,27 +106,6 @@ impl TryFrom<u8> for ParameterMode {
     }
 }
 
-fn iter_digits_reversed(mut n: i32) -> impl Iterator<Item = u8> {
-    debug!("iter_digits_reversed: {}", n);
-    let mut n_digits_returned = 0;
-    std::iter::from_fn(move || match n {
-        0 => {
-            if n_digits_returned >= 4 {
-                None
-            } else {
-                n_digits_returned += 1;
-                Some(0)
-            }
-        }
-        _ => Some({
-            let digit = n % 10;
-            n_digits_returned += 1;
-            n /= 10;
-            digit as _
-        }),
-    })
-}
-
 #[derive(Debug)]
 enum OpCode {
     Binary {
@@ -161,16 +140,18 @@ impl TryFrom<i32> for OpCode {
     type Error = Error;
 
     fn try_from(n: i32) -> Result<Self> {
-        let opcode: Vec<u8> = iter_digits_reversed(n).collect();
-        debug!("Opcode {:?}", opcode);
-        // Safety: iter_digits pads input to ensure safe access in this function.
-        let op = opcode[0] + opcode[1] * 10;
+        // 01001 - first two digits are opcode, rest are parameter modes.
+        // ---~~
+        let (mut parameters, op) = (n / 100, (n % 100) as u8);
 
         match op {
             op if BinaryOperation::try_from(op).is_ok() => {
-                let left_parameter_mode = ParameterMode::try_from(opcode[2]).unwrap_or_default();
+                let left_parameter_mode =
+                    ParameterMode::try_from((parameters % 10) as u8).unwrap_or_default();
+                parameters /= 10;
 
-                let right_parameter_mode = ParameterMode::try_from(opcode[3]).unwrap_or_default();
+                let right_parameter_mode =
+                    ParameterMode::try_from((parameters % 10) as u8).unwrap_or_default();
 
                 Ok(OpCode::Binary {
                     left: left_parameter_mode,
@@ -179,7 +160,8 @@ impl TryFrom<i32> for OpCode {
                 })
             }
             op if UnaryOperation::try_from(op).is_ok() => {
-                let parameter_mode = ParameterMode::try_from(opcode[2]).unwrap_or_default();
+                let parameter_mode =
+                    ParameterMode::try_from((parameters % 10) as u8).unwrap_or_default();
 
                 Ok(OpCode::Unary {
                     value: parameter_mode,
@@ -187,8 +169,12 @@ impl TryFrom<i32> for OpCode {
                 })
             }
             op if JumpOperation::try_from(op).is_ok() => {
-                let left_parameter_mode = ParameterMode::try_from(opcode[2]).unwrap_or_default();
-                let right_parameter_mode = ParameterMode::try_from(opcode[3]).unwrap_or_default();
+                let left_parameter_mode =
+                    ParameterMode::try_from((parameters % 10) as u8).unwrap_or_default();
+                parameters /= 10;
+
+                let right_parameter_mode =
+                    ParameterMode::try_from((parameters % 10) as u8).unwrap_or_default();
 
                 Ok(OpCode::Jump {
                     left: left_parameter_mode,
@@ -197,7 +183,7 @@ impl TryFrom<i32> for OpCode {
                 })
             }
             99 => Ok(OpCode::Halt),
-            _ => bail!("`{:?}` is not a valid opcode.", opcode),
+            _ => bail!("`{:?}` is not a valid opcode.", n),
         }
     }
 }

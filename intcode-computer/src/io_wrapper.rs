@@ -22,7 +22,7 @@ impl Io {
 
     /// Read from input
     pub fn output_read(&mut self) -> Result<i32, Error> {
-        self.output.pop_front().ok_or(Error::msg("EOF"))
+        self.output.pop_front().ok_or_else(|| Error::msg("EOF"))
     }
 
     /// Read from input
