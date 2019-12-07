@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use day7::part_1;
+use day7::{part_1, part_2};
 use std::io::{stdin, Read};
 
 fn main() -> Result<()> {
@@ -12,6 +12,7 @@ fn main() -> Result<()> {
         .context("Failed to read input from stdin")?;
 
     println!("Part 1 - {}", part_1(&input)?);
+    println!("Part 2 - {}", part_2(&input)?);
 
     Ok(())
 }

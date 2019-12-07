@@ -1,8 +1,10 @@
+#[deny(unused_must_used)]
 use anyhow::{bail, Context, Error, Result};
-use intcode_computer::{ExecutionStatus, IntcodeComputer, Io};
+use intcode_computer::{ExecutionStatus, IntcodeComputer};
 use itertools::Itertools;
 use log::debug;
 use std::collections::VecDeque;
+use std::mem;
 
 pub fn part_1(input: &str) -> Result<i32> {
     let program = IntcodeComputer::parse_program(input)?;
@@ -19,7 +21,7 @@ pub fn part_2(input: &str) -> Result<i32> {
 
     Ok((5..=9)
         .permutations(5)
-        .filter_map(|perm| calculate_thruster_signal(program.clone(), perm).ok())
+        .filter_map(|perm| calculate_thruster_with_feedback_loop(program.clone(), perm).ok())
         .max()
         .expect("There is a maximum"))
 }
@@ -40,7 +42,7 @@ impl Amplifier {
         }
     }
     pub fn provide_input(&mut self, input: Vec<i32>) -> Result<()> {
-        self.program.write_to_input(input);
+        self.program.write_to_input(input)?;
         Ok(())
     }
 
@@ -63,7 +65,7 @@ fn calculate_thruster_signal(program: Vec<i32>, inputs: Vec<i32>) -> Result<i32>
     for amp in amps.iter_mut() {
         let input = vec![inputs[amp.amplifier_id as usize], last_input];
         debug!("Amplifier {} - {:?}", amp.amplifier_id, &input);
-        amp.provide_input(input);
+        amp.provide_input(input)?;
         match amp.run() {
             ExecutionStatus::Error(e) => return Err(e),
             ExecutionStatus::NeedInput => continue,
@@ -83,21 +85,22 @@ fn calculate_thruster_with_feedback_loop(program: Vec<i32>, inputs: Vec<i32>) ->
         .map(|id| Amplifier::new(id, program.clone()))
         .collect();
 
-    // Bootstrap feedback loop process
-    let amp_0 = amps.get_mut(0).expect("Amp exists");
-    amp_0.provide_input(vec![0]);
-    amp_0.run();
-
     // Load settings
     for amp in amps.iter_mut() {
-        amp.provide_input(vec![inputs[(amp.amplifier_id - 5) as usize]]);
+        debug!(
+            "Amplifier {} - Input is {:?}",
+            amp.amplifier_id,
+            vec![inputs[(amp.amplifier_id - 5) as usize]]
+        );
+        amp.provide_input(vec![inputs[(amp.amplifier_id - 5) as usize]])?;
     }
+
+    debug!("---------- START ------------------");
 
     while !done {
         for amp in amps.iter_mut() {
-            let input = vec![last_input];
-            debug!("Amplifier {} - Input is {:?}", amp.amplifier_id, &input);
-            amp.provide_input(input);
+            debug!("Amplifier {} - Input is {:?}", amp.amplifier_id, last_input);
+            amp.provide_input(vec![last_input])?;
 
             match amp.run() {
                 ExecutionStatus::Error(e) => return Err(e),
@@ -109,9 +112,11 @@ fn calculate_thruster_with_feedback_loop(program: Vec<i32>, inputs: Vec<i32>) ->
                     done = true
                 }
             }
+
             last_input = amp.read_from_output()?;
+
             debug!(
-                "Output from Amplifier {} is {}",
+                "Output from Amplifier {} is {:?}",
                 amp.amplifier_id, last_input
             );
         }
@@ -142,9 +147,11 @@ mod tests {
         env_logger::init();
         assert_eq!(
             calculate_thruster_with_feedback_loop(
-                IntcodeComputer::parse_program("3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5")
-                    .unwrap(),
-                vec![9,8,7,6,5]
+                IntcodeComputer::parse_program(
+                    "3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5"
+                )
+                .unwrap(),
+                vec![9, 8, 7, 6, 5]
             )
             .unwrap(),
             139629729
