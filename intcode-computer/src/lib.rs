@@ -2,16 +2,15 @@ use anyhow::{bail, Context, Error, Result};
 use itertools::Itertools;
 use log::debug;
 use std::convert::{TryFrom, TryInto};
-use std::io::{Cursor, Read, Write};
-use std::str::FromStr;
-use std::{fmt, io};
+use std::fmt;
 
 mod io_wrapper;
 
 pub use io_wrapper::Io;
 use std::collections::VecDeque;
 
-type Memory = Vec<i32>;
+pub type Memory = Vec<i32>;
+pub type Address = i32;
 
 #[derive(Debug)]
 enum BinaryOperation {
@@ -243,7 +242,7 @@ impl IntcodeComputer {
             .collect::<Result<Vec<i32>>>()
     }
 
-    pub fn get(&self, i: i32) -> Result<i32> {
+    pub fn get(&self, i: Address) -> Result<i32> {
         self.memory
             .get(i as usize)
             .with_context(|| {
@@ -255,7 +254,7 @@ impl IntcodeComputer {
             .map(|i| *i)
     }
 
-    pub fn set(&mut self, i: i32, value: i32) -> Result<()> {
+    pub fn set_addr(&mut self, i: Address, value: i32) -> Result<()> {
         let stored = self.memory.get_mut(i as usize).with_context(|| {
             format!(
                 "Out of bounds access while writing to memory at index `{}`",
@@ -269,7 +268,7 @@ impl IntcodeComputer {
 
     pub fn write_to_input(&mut self, value: Vec<i32>) -> Result<()> {
         for i in value {
-            self.io.input_write(i);
+            self.io.input_write(i)?;
         }
 
         Ok(())
@@ -310,24 +309,24 @@ impl IntcodeComputer {
                     match t {
                         BinaryOperation::Addition => {
                             let result = param1 + param2;
-                            self.set(dest, result).unwrap();
+                            self.set_addr(dest, result).unwrap();
                         }
                         BinaryOperation::Multiplication => {
                             let result = param1 * param2;
-                            self.set(dest, result).unwrap();
+                            self.set_addr(dest, result).unwrap();
                         }
                         BinaryOperation::Equals => {
                             if param1 == param2 {
-                                self.set(dest, 1).unwrap();
+                                self.set_addr(dest, 1).unwrap();
                             } else {
-                                self.set(dest, 0).unwrap();
+                                self.set_addr(dest, 0).unwrap();
                             }
                         }
                         BinaryOperation::LessThan => {
                             if param1 < param2 {
-                                self.set(dest, 1).unwrap();
+                                self.set_addr(dest, 1).unwrap();
                             } else {
-                                self.set(dest, 0).unwrap();
+                                self.set_addr(dest, 0).unwrap();
                             }
                         }
                     };
@@ -344,7 +343,7 @@ impl IntcodeComputer {
                             Err(_) => return ExecutionStatus::NeedInput,
                             Ok(i) => {
                                 debug!("Setting index {} to {}", dest, i);
-                                self.set(dest, i).unwrap();
+                                self.set_addr(dest, i).unwrap();
                             }
                         },
                     };

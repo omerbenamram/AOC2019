@@ -1,7 +1,5 @@
-use crate::Memory;
 use anyhow::{Error, Result};
 use std::collections::VecDeque;
-use std::io::{self, Read, Write};
 
 #[derive(Debug)]
 pub struct Io {

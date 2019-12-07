@@ -16,6 +16,7 @@ path = "./src/main.rs"
 
 [dependencies]
 anyhow = "1.0.25"
+intcode_computer = {path = "../intcode-computer"}
 itertools = "*"
 
 [dev-dependencies]
