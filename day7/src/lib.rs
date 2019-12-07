@@ -1,76 +1,42 @@
-#[deny(unused_must_used)]
-use anyhow::{bail, Context, Error, Result};
+#[deny(unused_must_use)]
+use anyhow::{Context, Result};
 use intcode_computer::{ExecutionStatus, IntcodeComputer};
 use itertools::Itertools;
 use log::debug;
-use std::collections::VecDeque;
-use std::mem;
 
 pub fn part_1(input: &str) -> Result<i32> {
     let program = IntcodeComputer::parse_program(input)?;
 
-    Ok((0..=4)
+    (0..=4)
         .permutations(5)
         .filter_map(|perm| calculate_thruster_signal(program.clone(), perm).ok())
         .max()
-        .expect("There is a maximum"))
+        .context("Expected a maximum")
 }
 
 pub fn part_2(input: &str) -> Result<i32> {
     let program = IntcodeComputer::parse_program(input)?;
 
-    Ok((5..=9)
+    (5..=9)
         .permutations(5)
         .filter_map(|perm| calculate_thruster_with_feedback_loop(program.clone(), perm).ok())
         .max()
-        .expect("There is a maximum"))
-}
-
-#[derive(Debug)]
-struct Amplifier {
-    pub amplifier_id: i32,
-    program: IntcodeComputer,
-}
-
-impl Amplifier {
-    pub fn new(id: i32, program: Vec<i32>) -> Self {
-        let computer = IntcodeComputer::new(program);
-
-        Self {
-            amplifier_id: id,
-            program: computer,
-        }
-    }
-    pub fn provide_input(&mut self, input: Vec<i32>) -> Result<()> {
-        self.program.write_to_input(input)?;
-        Ok(())
-    }
-
-    pub fn run(&mut self) -> ExecutionStatus {
-        self.program.run()
-    }
-
-    pub fn read_from_output(&mut self) -> Result<i32> {
-        self.program.read_from_output()
-    }
+        .context("Expected a maximum")
 }
 
 fn calculate_thruster_signal(program: Vec<i32>, inputs: Vec<i32>) -> Result<i32> {
     // We have 5 amplifiers.
     let mut last_input = 0;
-    let mut amps: Vec<Amplifier> = (0..=4)
-        .map(|id| Amplifier::new(id, program.clone()))
+    let mut amps: Vec<IntcodeComputer> = (0..=4)
+        .map(|_| IntcodeComputer::new(program.clone()))
         .collect();
 
-    for amp in amps.iter_mut() {
-        let input = vec![inputs[amp.amplifier_id as usize], last_input];
-        debug!("Amplifier {} - {:?}", amp.amplifier_id, &input);
-        amp.provide_input(input)?;
-        match amp.run() {
-            ExecutionStatus::Error(e) => return Err(e),
-            ExecutionStatus::NeedInput => continue,
-            ExecutionStatus::Done => {}
-        }
+    for (i, amp) in amps.iter_mut().enumerate() {
+        let input = vec![inputs[i], last_input];
+        debug!("Amplifier {} - {:?}", i, &input);
+        amp.write_to_input(input)?;
+        amp.run_until_halt()?;
+
         last_input = amp.read_from_output()?;
     }
 
@@ -81,44 +47,38 @@ fn calculate_thruster_with_feedback_loop(program: Vec<i32>, inputs: Vec<i32>) ->
     let mut last_input = 0;
     let mut done = false;
 
-    let mut amps: Vec<Amplifier> = (5..=9)
-        .map(|id| Amplifier::new(id, program.clone()))
+    let mut amps: Vec<IntcodeComputer> = (0..=4)
+        .map(|_| IntcodeComputer::new(program.clone()))
         .collect();
 
     // Load settings
-    for amp in amps.iter_mut() {
-        debug!(
-            "Amplifier {} - Input is {:?}",
-            amp.amplifier_id,
-            vec![inputs[(amp.amplifier_id - 5) as usize]]
-        );
-        amp.provide_input(vec![inputs[(amp.amplifier_id - 5) as usize]])?;
+    debug!("Loading settings to amplifiers.");
+
+    for (i, amp) in amps.iter_mut().enumerate() {
+        debug!("Amplifier {} - Input is {:?}", i, vec![inputs[i]]);
+        amp.write_to_input(vec![inputs[i]])?;
     }
 
     debug!("---------- START ------------------");
 
     while !done {
-        for amp in amps.iter_mut() {
-            debug!("Amplifier {} - Input is {:?}", amp.amplifier_id, last_input);
-            amp.provide_input(vec![last_input])?;
+        for (amp, i) in amps.iter_mut().zip(5..=9) {
+            debug!("Amplifier {} - Input is {:?}", i, last_input);
+            amp.write_to_input(vec![last_input])?;
 
-            match amp.run() {
-                ExecutionStatus::Error(e) => return Err(e),
+            match amp.run()? {
                 ExecutionStatus::NeedInput => {
-                    debug!("Amplifier {} needs input", amp.amplifier_id);
+                    debug!("Amplifier {} needs input", i);
                 }
                 ExecutionStatus::Done => {
-                    debug!("Amplifier {} is done", amp.amplifier_id);
+                    debug!("Amplifier {} is done", i);
                     done = true
                 }
             }
 
             last_input = amp.read_from_output()?;
 
-            debug!(
-                "Output from Amplifier {} is {:?}",
-                amp.amplifier_id, last_input
-            );
+            debug!("Output from Amplifier {} is {:?}", i, last_input);
         }
     }
 

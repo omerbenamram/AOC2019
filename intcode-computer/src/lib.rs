@@ -209,16 +209,10 @@ pub struct IntcodeComputer {
     eip: i32,
 }
 
+#[derive(Debug)]
 pub enum ExecutionStatus {
     NeedInput,
     Done,
-    Error(anyhow::Error),
-}
-
-impl From<anyhow::Error> for ExecutionStatus {
-    fn from(e: Error) -> Self {
-        ExecutionStatus::Error(e)
-    }
 }
 
 impl IntcodeComputer {
@@ -282,86 +276,83 @@ impl IntcodeComputer {
         self.io.into_output()
     }
 
-    pub fn run(&mut self) -> ExecutionStatus {
+    pub fn run(&mut self) -> Result<ExecutionStatus> {
         loop {
             // OpCode is always first two digits of number at `i`.
-            let op = OpCode::try_from(self.get(self.eip).unwrap()).unwrap();
+            let op = OpCode::try_from(self.get(self.eip)?)?;
             debug!("{:?}", &op);
 
             match &op {
                 OpCode::Binary { left, right, t } => {
                     let (n1, n2, dest) = (
-                        self.get(self.eip + 1).unwrap(),
-                        self.get(self.eip + 2).unwrap(),
-                        self.get(self.eip + 3).unwrap(),
+                        self.get(self.eip + 1)?,
+                        self.get(self.eip + 2)?,
+                        self.get(self.eip + 3)?,
                     );
 
                     let param1 = match left {
-                        ParameterMode::Position => self.get(n1).unwrap(),
+                        ParameterMode::Position => self.get(n1)?,
                         ParameterMode::Immediate => n1,
                     };
 
                     let param2 = match right {
-                        ParameterMode::Position => self.get(n2).unwrap(),
+                        ParameterMode::Position => self.get(n2)?,
                         ParameterMode::Immediate => n2,
                     };
 
                     match t {
                         BinaryOperation::Addition => {
                             let result = param1 + param2;
-                            self.set_addr(dest, result).unwrap();
+                            self.set_addr(dest, result)?;
                         }
                         BinaryOperation::Multiplication => {
                             let result = param1 * param2;
-                            self.set_addr(dest, result).unwrap();
+                            self.set_addr(dest, result)?;
                         }
                         BinaryOperation::Equals => {
                             if param1 == param2 {
-                                self.set_addr(dest, 1).unwrap();
+                                self.set_addr(dest, 1)?;
                             } else {
-                                self.set_addr(dest, 0).unwrap();
+                                self.set_addr(dest, 0)?;
                             }
                         }
                         BinaryOperation::LessThan => {
                             if param1 < param2 {
-                                self.set_addr(dest, 1).unwrap();
+                                self.set_addr(dest, 1)?;
                             } else {
-                                self.set_addr(dest, 0).unwrap();
+                                self.set_addr(dest, 0)?;
                             }
                         }
                     };
                     self.eip += op.length()
                 }
                 OpCode::Unary { value: _, t } => {
-                    let dest = self.get(self.eip + 1).unwrap();
+                    let dest = self.get(self.eip + 1)?;
 
                     match t {
                         UnaryOperation::Output => {
-                            self.io.write(self.get(dest).unwrap()).unwrap();
+                            self.io.write(self.get(dest)?)?;
                         }
                         UnaryOperation::Store => match self.io.read() {
-                            Err(_) => return ExecutionStatus::NeedInput,
+                            Err(_) => return Ok(ExecutionStatus::NeedInput),
                             Ok(i) => {
                                 debug!("Setting index {} to {}", dest, i);
-                                self.set_addr(dest, i).unwrap();
+                                self.set_addr(dest, i)?;
                             }
                         },
                     };
                     self.eip += op.length()
                 }
                 OpCode::Jump { left, right, t } => {
-                    let (n1, n2) = (
-                        self.get(self.eip + 1).unwrap(),
-                        self.get(self.eip + 2).unwrap(),
-                    );
+                    let (n1, n2) = (self.get(self.eip + 1)?, self.get(self.eip + 2)?);
 
                     let param1 = match left {
-                        ParameterMode::Position => self.get(n1).unwrap(),
+                        ParameterMode::Position => self.get(n1)?,
                         ParameterMode::Immediate => n1,
                     };
 
                     let param2 = match right {
-                        ParameterMode::Position => self.get(n2).unwrap(),
+                        ParameterMode::Position => self.get(n2)?,
                         ParameterMode::Immediate => n2,
                     };
 
@@ -383,24 +374,23 @@ impl IntcodeComputer {
                     }
 
                     if self.eip >= self.memory.len() as i32 {
-                        return ExecutionStatus::Error(Error::msg(format!(
-                            "Segfault. EIP is at {}",
-                            self.eip
-                        )));
+                        bail!("Segfault. EIP is at {}", self.eip);
                     }
                 }
                 OpCode::Halt => break,
             }
         }
 
-        ExecutionStatus::Done
+        Ok(ExecutionStatus::Done)
     }
 
     pub fn run_until_halt(&mut self) -> Result<()> {
         match self.run() {
-            ExecutionStatus::NeedInput => return Err(Error::msg("EOF")),
-            ExecutionStatus::Done => Ok(()),
-            ExecutionStatus::Error(e) => Err(e),
+            Ok(status) => match status {
+                ExecutionStatus::NeedInput => return Err(Error::msg("EOF")),
+                ExecutionStatus::Done => Ok(()),
+            },
+            Err(e) => Err(e),
         }
     }
 }
