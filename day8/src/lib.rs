@@ -1,5 +1,4 @@
 use anyhow::{bail, Context, Error, Result};
-use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
 use std::fmt::Write;
@@ -11,22 +10,6 @@ enum Pixel {
     Black,
     White,
     Transparent,
-}
-
-impl Ord for Pixel {
-    fn cmp(&self, other: &Self) -> Ordering {
-        use Pixel::*;
-
-        match (self, other) {
-            (Black, Black) => Ordering::Equal,
-            (Black, _) => Ordering::Greater,
-            (White, White) => Ordering::Equal,
-            (White, Transparent) => Ordering::Greater,
-            (White, Black) => Ordering::Less,
-            (Transparent, Transparent) => Ordering::Equal,
-            (Transparent, _) => Ordering::Less,
-        }
-    }
 }
 
 impl fmt::Display for Pixel {
