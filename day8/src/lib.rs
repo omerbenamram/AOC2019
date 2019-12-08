@@ -68,14 +68,21 @@ struct EncodedImage {
 impl EncodedImage {
     /// X, Y are the dimensions of each layer in the image.
     pub fn with_dimensions(x: usize, y: usize, pixels: Vec<Pixel>) -> Result<EncodedImage> {
-        let rows: Vec<PixelRow> = pixels.chunks(x).map(|c| c.to_vec()).collect();
-        let layers: Vec<Layer> = rows
-            .chunks(y)
+        let mut rows_iter = pixels.chunks_exact(x);
+        let rows: Vec<PixelRow> = rows_iter.by_ref().map(|c| c.to_vec()).collect();
+
+        if !rows_iter.remainder().is_empty() {
+            return Err(Error::msg("Invalid input dimensions"));
+        }
+
+        let mut layers_iter = rows.chunks_exact(y);
+        let layers: Vec<Layer> = layers_iter
+            .by_ref()
             .map(|rows| Layer::new(rows.to_vec()))
             .collect();
 
-        if layers.is_empty() {
-            return Err(Error::msg("Expected input"));
+        if !layers_iter.remainder().is_empty() {
+            return Err(Error::msg("Invalid input dimensions"));
         }
 
         Ok(EncodedImage { layers, x, y })
