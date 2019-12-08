@@ -2,6 +2,7 @@ use anyhow::{bail, Context, Error, Result};
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
+use std::fmt::Write;
 
 type PixelRow = Vec<Pixel>;
 
@@ -175,21 +176,24 @@ pub fn part_1(input: &str) -> Result<usize> {
     im.checksum().context("Failed to calculate checksum")
 }
 
-pub fn part_2(input: &str) -> Result<()> {
+pub fn part_2(input: &str) -> Result<String> {
     let input = parse_pixels(input)?;
-
     let im = EncodedImage::with_dimensions(25, 6, input)?;
 
-    println!(
-        "\
-    --------------------------------
-{}\
-    --------------------------------
+    let mut result = String::with_capacity(25 * 10);
+
+    writeln!(
+        result,
+        "\n
+--------------------------------
+
+{}
+--------------------------------
     ",
         im.decode()
-    );
+    )?;
 
-    Ok(())
+    Ok(result)
 }
 
 #[cfg(test)]
