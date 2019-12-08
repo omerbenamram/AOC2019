@@ -1,0 +1,1 @@
+Get-Content .\input\image | cargo run --release --
