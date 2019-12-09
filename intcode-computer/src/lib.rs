@@ -1,7 +1,6 @@
 use anyhow::{bail, Context, Error, Result};
 use itertools::Itertools;
-use log::debug;
-use std::convert::{TryFrom, TryInto};
+use log::{debug, trace};
 use std::fmt;
 
 mod io_wrapper;
@@ -26,40 +25,13 @@ enum BinaryOperation {
     LessThan,
 }
 
-impl TryFrom<u8> for BinaryOperation {
-    type Error = Error;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            1 => Ok(BinaryOperation::Addition),
-            2 => Ok(BinaryOperation::Multiplication),
-            7 => Ok(BinaryOperation::LessThan),
-            8 => Ok(BinaryOperation::Equals),
-            _ => bail!("Unknown arithmetic operation `{}`", value),
-        }
-    }
-}
-
-#[derive(Debug, PartialOrd, PartialEq)]
-enum UnaryOperation {
-    /// Takes a single integer as input and saves it to the position given by its only parameter.
-    /// For example, the instruction 3,50 would take an input value and store it at address 50
-    Store,
-    /// Outputs the value of its only parameter.
-    /// For example, the instruction 4,50 would output the value at address 50
-    Output,
-    AdjustRelativeBase,
-}
-
-impl TryFrom<u8> for UnaryOperation {
-    type Error = Error;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            3 => Ok(UnaryOperation::Store),
-            4 => Ok(UnaryOperation::Output),
-            9 => Ok(UnaryOperation::AdjustRelativeBase),
-            _ => bail!("Unknown unary opeartion `{}`", value),
+impl BinaryOperation {
+    pub fn eval(&self, left: i64, right: i64) -> i64 {
+        match self {
+            BinaryOperation::Addition => left + right,
+            BinaryOperation::Multiplication => left * right,
+            BinaryOperation::Equals => (left == right) as i64,
+            BinaryOperation::LessThan => (left < right) as i64,
         }
     }
 }
@@ -70,140 +42,44 @@ enum JumpOperation {
     JumpIfFalse,
 }
 
-impl TryFrom<u8> for JumpOperation {
-    type Error = Error;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            5 => Ok(JumpOperation::JumpIfTrue),
-            6 => Ok(JumpOperation::JumpIfFalse),
-            _ => bail!("Unknown jump opeartion `{}`", value),
-        }
-    }
-}
-
 #[derive(Debug, PartialOrd, PartialEq)]
-enum ParameterMode {
+enum Parameter {
     /// Causes the parameter to be interpreted as a position.
-    Position,
+    Position(Address),
     /// Causes the parameter to be interpreted as a value.
-    Immediate,
+    Immediate(i64),
     /// Parameter is interpreted as a position relative to the current `relative_base`
-    Relative,
-}
-
-impl Default for ParameterMode {
-    fn default() -> Self {
-        ParameterMode::Position
-    }
-}
-
-impl TryFrom<u8> for ParameterMode {
-    type Error = Error;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(ParameterMode::Position),
-            1 => Ok(ParameterMode::Immediate),
-            2 => Ok(ParameterMode::Relative),
-            _ => bail!("Unknown parameter mode `{}`", value),
-        }
-    }
+    Relative(Address),
 }
 
 #[derive(Debug, PartialOrd, PartialEq)]
 enum OpCode {
     Binary {
-        left: ParameterMode,
-        right: ParameterMode,
-        dest: ParameterMode,
+        left: Parameter,
+        right: Parameter,
+        dest: Address,
         t: BinaryOperation,
     },
-    Unary {
-        value: ParameterMode,
-        t: UnaryOperation,
+    /// Takes a single integer as input and saves it to the position given by its only parameter.
+    /// For example, the instruction 3,50 would take an input value and store it at address 50
+    Input {
+        address: Address,
+    },
+    /// Outputs the value of its only parameter.
+    /// For example, the instruction 4,50 would output the value at address 50
+    Output {
+        value: Parameter,
+    },
+    /// Adjusts the relative base by the value of its only parameter.
+    AdjustRelativeBase {
+        value: Parameter,
     },
     Jump {
-        left: ParameterMode,
-        right: ParameterMode,
+        condition: Parameter,
+        right: Parameter,
         t: JumpOperation,
     },
     Halt,
-}
-
-impl OpCode {
-    pub fn length(&self) -> i64 {
-        match self {
-            OpCode::Binary { .. } => 4,
-            OpCode::Unary { .. } => 2,
-            OpCode::Jump { .. } => 3,
-            OpCode::Halt => 1,
-        }
-    }
-}
-
-impl TryFrom<i64> for OpCode {
-    type Error = Error;
-
-    fn try_from(n: i64) -> Result<Self> {
-        // 01001 - first two digits are opcode, rest are parameter modes.
-        // ---~~
-        let (mut parameters, op) = (n / 100, (n % 100) as u8);
-
-        match op {
-            op if BinaryOperation::try_from(op).is_ok() => {
-                let left_parameter_mode =
-                    ParameterMode::try_from((parameters % 10) as u8).unwrap_or_default();
-
-                parameters /= 10;
-
-                let right_parameter_mode =
-                    ParameterMode::try_from((parameters % 10) as u8).unwrap_or_default();
-
-                parameters /= 10;
-
-                let dest_parameter_mode = if parameters > 0 {
-                    ParameterMode::try_from((parameters % 10) as u8)
-                        .unwrap_or(ParameterMode::Immediate)
-                } else {
-                    ParameterMode::Immediate
-                };
-
-                Ok(OpCode::Binary {
-                    left: left_parameter_mode,
-                    right: right_parameter_mode,
-                    dest: dest_parameter_mode,
-                    t: op.try_into()?,
-                })
-            }
-            op if UnaryOperation::try_from(op).is_ok() => {
-                let parameter_mode =
-                    ParameterMode::try_from((parameters % 10) as u8).unwrap_or_default();
-
-                Ok(OpCode::Unary {
-                    value: parameter_mode,
-                    t: op.try_into()?,
-                })
-            }
-            op if JumpOperation::try_from(op).is_ok() => {
-                let left_parameter_mode =
-                    ParameterMode::try_from((parameters % 10) as u8).unwrap_or_default();
-
-                parameters /= 10;
-
-                let right_parameter_mode =
-                    ParameterMode::try_from((parameters % 10) as u8).unwrap_or_default();
-
-                Ok(OpCode::Jump {
-                    left: left_parameter_mode,
-                    right: right_parameter_mode,
-                    t: op.try_into()?,
-                })
-            }
-            99 => Ok(OpCode::Halt),
-            _ => bail!("`{:?}` is not a valid opcode.", n),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -245,15 +121,15 @@ impl IntcodeComputer {
 
     pub fn get(&self, i: Address) -> Result<i64> {
         if i < 0 {
-            bail!("Cannot access memory at a negative offset `0x{:8x}`", i);
+            bail!("Cannot access memory at a negative offset `0x{:08x}`", i);
         }
 
         self.memory
             .get(i as usize)
             .with_context(|| {
                 format!(
-                    "Out of bounds access while reading from memory at index `{}`",
-                    i
+                    "Out of bounds access while reading from memory at offset `0x{:08x} ({})`",
+                    i, i
                 )
             })
             .map(|i| *i)
@@ -262,7 +138,7 @@ impl IntcodeComputer {
     pub fn set_addr(&mut self, i: Address, value: i64) -> Result<()> {
         if i < 0 {
             bail!(
-                "Cannot write to memory at a negative offset `0x{:8x} ({})`",
+                "Cannot write to memory at a negative offset `0x{:08x} ({})`",
                 i,
                 i
             );
@@ -270,8 +146,8 @@ impl IntcodeComputer {
 
         let stored = self.memory.get_mut(i as usize).with_context(|| {
             format!(
-                "Out of bounds access while writing to memory at index `{}`",
-                i
+                "Out of bounds access while writing to memory at offset `0x{:08x} ({})`",
+                i, i
             )
         })?;
 
@@ -295,15 +171,138 @@ impl IntcodeComputer {
         self.io.into_output()
     }
 
+    fn load(&self, parameter: &Parameter) -> Result<i64> {
+        let p = match parameter {
+            Parameter::Position(i) => self.get(*i)?,
+            Parameter::Immediate(i) => *i,
+            Parameter::Relative(i) => self.get(i + self.ebp)?,
+        };
+
+        Ok(p)
+    }
+
+    fn read_opcode(&mut self) -> Result<OpCode> {
+        let raw = self.get(self.eip)?;
+
+        // 01001 - first two digits are opcode, rest are parameter modes.
+        // ---~~
+        let (mut parameters, op) = (raw / 100, (raw % 100) as u8);
+
+        // inspired by https://github.com/matklad/aoc2019/blob/master/src/lib.rs#L158
+        // Arugment can either be a value or an address.
+        // Input to this macro is in the form of `let (val1, val2, dest) = parse_arguments!(v v a)`.
+        macro_rules! parse_arguments {
+            ($($m:ident)*) => {{
+                // https://doc.rust-lang.org/rust-by-example/macros/repeat.html
+                //          Unpack a tuple of `parse_arguments`
+                //          for each ident
+                let args = ($(parse_arguments!(@ $m),)*);
+                if parameters != 0 {
+                    bail!("Did not consume all parameters.");
+                }
+                self.eip += 1;
+                args
+            }};
+            // Parses a `value`
+            (@ v) => {{
+                self.eip += 1;
+
+                let parameter_value = self.get(self.eip)?;
+                let parameter_mode = parameters % 10;
+
+                let actual_value = match parameter_mode {
+                    // Position - read the value at the address.
+                    0 => Parameter::Position(parameter_value),
+                    // Immediate - just use the value.
+                    1 => Parameter::Immediate(parameter_value),
+                    // Relative - use position + relative base.
+                    2 => Parameter::Relative(parameter_value),
+                    _ => bail!("Invalid parameter mode `{}`", parameter_mode)
+                };
+
+                parameters /= 10;
+                actual_value
+            }};
+            // Parses an address, addresses are always an i64 (`Address`)
+            (@ a) => {{
+                self.eip += 1;
+                let parameter_value = self.get(self.eip)?;
+                let parameter_mode = parameters % 10;
+
+                let actual_value = match parameter_mode {
+                    // Addresses cannot be positional, 0 will be given no mode is specified,
+                    // in this case we use the address value.
+                    0 | 1 =>  parameter_value,
+                    // Relative - use position + relative base.
+                    2 => parameter_value + self.ebp,
+                    _ => bail!("Invalid parameter mode `{}`", parameter_mode)
+                };
+
+                parameters /= 10;
+                actual_value
+            }}
+        }
+
+        let op = match op {
+            // Binary ops
+            1 | 2 | 7 | 8 => {
+                let (left, right, dest) = parse_arguments!(v v a);
+                let t = match op {
+                    1 => BinaryOperation::Addition,
+                    2 => BinaryOperation::Multiplication,
+                    7 => BinaryOperation::LessThan,
+                    8 => BinaryOperation::Equals,
+                    _ => unreachable!(),
+                };
+
+                OpCode::Binary {
+                    left,
+                    right,
+                    dest,
+                    t,
+                }
+            }
+            3 => {
+                let (dst,) = parse_arguments!(a);
+                OpCode::Input { address: dst }
+            }
+            4 => {
+                let (value,) = parse_arguments!(v);
+                OpCode::Output { value }
+            }
+            5 | 6 => {
+                let (cond, dest) = parse_arguments!(v v);
+                let t = match op {
+                    5 => JumpOperation::JumpIfTrue,
+                    6 => JumpOperation::JumpIfFalse,
+                    _ => unreachable!(),
+                };
+
+                OpCode::Jump {
+                    condition: cond,
+                    right: dest,
+                    t,
+                }
+            }
+            9 => {
+                let (value,) = parse_arguments!(v);
+                OpCode::AdjustRelativeBase { value }
+            }
+            99 => OpCode::Halt,
+            _ => bail!("Unknown opcode `{}`", raw),
+        };
+
+        debug!(
+            "0x{:08x} ({:04}): `{:05}` => {:?} ",
+            self.eip, self.eip, raw, &op
+        );
+
+        Ok(op)
+    }
+
     pub fn run(&mut self) -> Result<ExecutionStatus> {
         loop {
-            // OpCode is always first two digits of number at `i`.
-            let raw = self.get(self.eip)?;
-            let op = OpCode::try_from(raw)?;
-            debug!(
-                "0x{:08x} ({:04}): `{:05}` => {:?} ",
-                self.eip, self.eip, raw, &op
-            );
+            let op = self.read_opcode()?;
 
             match &op {
                 OpCode::Binary {
@@ -312,117 +311,45 @@ impl IntcodeComputer {
                     dest,
                     t,
                 } => {
-                    let (n1, n2, n3) = (
-                        self.get(self.eip + 1)?,
-                        self.get(self.eip + 2)?,
-                        self.get(self.eip + 3)?,
-                    );
-
-                    let param1 = match left {
-                        ParameterMode::Position => self.get(n1)?,
-                        ParameterMode::Immediate => n1,
-                        ParameterMode::Relative => self.get(n1 + self.ebp)?,
-                    };
-
-                    let param2 = match right {
-                        ParameterMode::Position => self.get(n2)?,
-                        ParameterMode::Immediate => n2,
-                        ParameterMode::Relative => self.get(n2 + self.ebp)?,
-                    };
-
-                    let param3 = match dest {
-                        ParameterMode::Position => self.get(n3)?,
-                        ParameterMode::Immediate => n3,
-                        ParameterMode::Relative => n3 + self.ebp,
-                    };
-
-                    match t {
-                        BinaryOperation::Addition => {
-                            let result = param1 + param2;
-                            self.set_addr(param3, result)?;
-                        }
-                        BinaryOperation::Multiplication => {
-                            let result = param1 * param2;
-                            self.set_addr(param3, result)?;
-                        }
-                        BinaryOperation::Equals => {
-                            if param1 == param2 {
-                                self.set_addr(param3, 1)?;
-                            } else {
-                                self.set_addr(param3, 0)?;
-                            }
-                        }
-                        BinaryOperation::LessThan => {
-                            if param1 < param2 {
-                                self.set_addr(param3, 1)?;
-                            } else {
-                                self.set_addr(param3, 0)?;
-                            }
-                        }
-                    };
-                    self.eip += op.length()
+                    let left = self.load(left)?;
+                    let right = self.load(right)?;
+                    let result = t.eval(left, right);
+                    self.set_addr(*dest, result)?;
                 }
-                OpCode::Unary { value: v, t } => {
-                    let dest = self.get(self.eip + 1)?;
-
-                    let param1 = match v {
-                        ParameterMode::Position => self.get(dest)?,
-                        ParameterMode::Immediate => dest,
-                        ParameterMode::Relative => self.get(dest + self.ebp)?,
-                    };
-
-                    match t {
-                        UnaryOperation::Output => {
-                            self.io.write(param1)?;
-                        }
-                        UnaryOperation::Store => match self.io.read() {
-                            Err(_) => return Ok(ExecutionStatus::NeedInput),
-                            Ok(i) => {
-                                debug!("MEMSET: `0x{:08x}`={}", dest + self.ebp, i);
-                                self.set_addr(dest + self.ebp, i)?;
-                            }
-                        },
-                        UnaryOperation::AdjustRelativeBase => {
-                            debug!("EBP: {} += {}", self.ebp, param1);
-                            self.ebp += param1;
-                        }
-                    };
-                    self.eip += op.length()
+                OpCode::Input { address } => match self.io.read() {
+                    Err(_) => return Ok(ExecutionStatus::NeedInput),
+                    Ok(i) => {
+                        trace!("MEMSET: `0x{:08x}`={}", address, i);
+                        self.set_addr(*address, i)?;
+                    }
+                },
+                OpCode::Output { value } => {
+                    self.io.write(self.load(value)?)?;
                 }
-                OpCode::Jump { left, right, t } => {
-                    let (n1, n2) = (self.get(self.eip + 1)?, self.get(self.eip + 2)?);
-
-                    let param1 = match left {
-                        ParameterMode::Position => self.get(n1)?,
-                        ParameterMode::Immediate => n1,
-                        ParameterMode::Relative => self.get(n1 + self.ebp)?,
-                    };
-
-                    let param2 = match right {
-                        ParameterMode::Position => self.get(n2)?,
-                        ParameterMode::Immediate => n2,
-                        ParameterMode::Relative => self.get(n2 + self.ebp)?,
-                    };
+                OpCode::AdjustRelativeBase { value } => {
+                    let value = self.load(value)?;
+                    trace!("EBP: {} += {}", self.ebp, value);
+                    self.ebp += value;
+                }
+                OpCode::Jump {
+                    condition: left,
+                    right,
+                    t,
+                } => {
+                    let condition = self.load(left)?;
+                    let right = self.load(right)?;
 
                     match t {
                         JumpOperation::JumpIfTrue => {
-                            if param1 != 0 {
-                                self.eip = param2
-                            } else {
-                                self.eip += op.length()
+                            if condition != 0 {
+                                self.eip = right
                             }
                         }
                         JumpOperation::JumpIfFalse => {
-                            if param1 == 0 {
-                                self.eip = param2
-                            } else {
-                                self.eip += op.length()
+                            if condition == 0 {
+                                self.eip = right
                             }
                         }
-                    }
-
-                    if self.eip >= self.memory.len() as i64 {
-                        bail!("Segfault. EIP is at {}", self.eip);
                     }
                 }
                 OpCode::Halt => break,
@@ -455,7 +382,7 @@ impl fmt::Display for IntcodeComputer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ParameterMode::{Immediate, Relative};
+    use crate::Parameter::{Immediate, Relative};
 
     macro_rules! test_memory {
         ($prog: expr, $i:expr, $o: expr) => {
@@ -504,19 +431,6 @@ mod tests {
     #[test]
     fn test_computer_input_immediate() {
         test_output!("3,3,1105,-1,9,1101,0,0,12,4,12,99,1", vec![0], vec![0]);
-    }
-
-    #[test]
-    fn test_opcode() {
-        assert_eq!(
-            OpCode::try_from(21101).unwrap(),
-            OpCode::Binary {
-                left: Immediate,
-                right: Immediate,
-                dest: Relative,
-                t: BinaryOperation::Addition
-            }
-        );
     }
 
     #[test]

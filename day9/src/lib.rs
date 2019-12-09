@@ -1,8 +1,6 @@
 #[deny(unused_must_use)]
 use anyhow::{Context, Result};
-use intcode_computer::{ExecutionStatus, IntcodeComputer};
-use itertools::Itertools;
-use log::debug;
+use intcode_computer::IntcodeComputer;
 
 pub fn part_1(input: &str) -> Result<i64> {
     let program = IntcodeComputer::parse_program(input)?;
