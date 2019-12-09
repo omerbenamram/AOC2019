@@ -9,10 +9,10 @@ mod io_wrapper;
 pub use io_wrapper::Io;
 use std::collections::VecDeque;
 
-pub type Memory = Vec<i32>;
-pub type Address = i32;
+pub type Memory = Vec<i64>;
+pub type Address = i64;
 
-#[derive(Debug)]
+#[derive(Debug, PartialOrd, PartialEq)]
 enum BinaryOperation {
     Addition,
     Multiplication,
@@ -40,7 +40,7 @@ impl TryFrom<u8> for BinaryOperation {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialOrd, PartialEq)]
 enum UnaryOperation {
     /// Takes a single integer as input and saves it to the position given by its only parameter.
     /// For example, the instruction 3,50 would take an input value and store it at address 50
@@ -48,6 +48,7 @@ enum UnaryOperation {
     /// Outputs the value of its only parameter.
     /// For example, the instruction 4,50 would output the value at address 50
     Output,
+    AdjustRelativeBase,
 }
 
 impl TryFrom<u8> for UnaryOperation {
@@ -57,12 +58,13 @@ impl TryFrom<u8> for UnaryOperation {
         match value {
             3 => Ok(UnaryOperation::Store),
             4 => Ok(UnaryOperation::Output),
+            9 => Ok(UnaryOperation::AdjustRelativeBase),
             _ => bail!("Unknown unary opeartion `{}`", value),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialOrd, PartialEq)]
 enum JumpOperation {
     JumpIfTrue,
     JumpIfFalse,
@@ -80,12 +82,14 @@ impl TryFrom<u8> for JumpOperation {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialOrd, PartialEq)]
 enum ParameterMode {
     /// Causes the parameter to be interpreted as a position.
     Position,
     /// Causes the parameter to be interpreted as a value.
     Immediate,
+    /// Parameter is interpreted as a position relative to the current `relative_base`
+    Relative,
 }
 
 impl Default for ParameterMode {
@@ -101,16 +105,18 @@ impl TryFrom<u8> for ParameterMode {
         match value {
             0 => Ok(ParameterMode::Position),
             1 => Ok(ParameterMode::Immediate),
+            2 => Ok(ParameterMode::Relative),
             _ => bail!("Unknown parameter mode `{}`", value),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialOrd, PartialEq)]
 enum OpCode {
     Binary {
         left: ParameterMode,
         right: ParameterMode,
+        dest: ParameterMode,
         t: BinaryOperation,
     },
     Unary {
@@ -126,7 +132,7 @@ enum OpCode {
 }
 
 impl OpCode {
-    pub fn length(&self) -> i32 {
+    pub fn length(&self) -> i64 {
         match self {
             OpCode::Binary { .. } => 4,
             OpCode::Unary { .. } => 2,
@@ -136,10 +142,10 @@ impl OpCode {
     }
 }
 
-impl TryFrom<i32> for OpCode {
+impl TryFrom<i64> for OpCode {
     type Error = Error;
 
-    fn try_from(n: i32) -> Result<Self> {
+    fn try_from(n: i64) -> Result<Self> {
         // 01001 - first two digits are opcode, rest are parameter modes.
         // ---~~
         let (mut parameters, op) = (n / 100, (n % 100) as u8);
@@ -148,14 +154,25 @@ impl TryFrom<i32> for OpCode {
             op if BinaryOperation::try_from(op).is_ok() => {
                 let left_parameter_mode =
                     ParameterMode::try_from((parameters % 10) as u8).unwrap_or_default();
+
                 parameters /= 10;
 
                 let right_parameter_mode =
                     ParameterMode::try_from((parameters % 10) as u8).unwrap_or_default();
 
+                parameters /= 10;
+
+                let dest_parameter_mode = if parameters > 0 {
+                    ParameterMode::try_from((parameters % 10) as u8)
+                        .unwrap_or(ParameterMode::Immediate)
+                } else {
+                    ParameterMode::Immediate
+                };
+
                 Ok(OpCode::Binary {
                     left: left_parameter_mode,
                     right: right_parameter_mode,
+                    dest: dest_parameter_mode,
                     t: op.try_into()?,
                 })
             }
@@ -171,6 +188,7 @@ impl TryFrom<i32> for OpCode {
             op if JumpOperation::try_from(op).is_ok() => {
                 let left_parameter_mode =
                     ParameterMode::try_from((parameters % 10) as u8).unwrap_or_default();
+
                 parameters /= 10;
 
                 let right_parameter_mode =
@@ -192,7 +210,8 @@ impl TryFrom<i32> for OpCode {
 pub struct IntcodeComputer {
     memory: Memory,
     io: Io,
-    eip: i32,
+    eip: i64,
+    ebp: i64,
 }
 
 #[derive(Debug)]
@@ -202,11 +221,13 @@ pub enum ExecutionStatus {
 }
 
 impl IntcodeComputer {
-    pub fn new(program: Memory) -> Self {
+    pub fn new(mut program: Memory) -> Self {
+        program.resize(1024 * 1024, 0);
         Self {
             memory: program,
             io: Io::new(),
             eip: 0,
+            ebp: 0,
         }
     }
 
@@ -216,13 +237,17 @@ impl IntcodeComputer {
             .split(",")
             .map(|number| {
                 number
-                    .parse::<i32>()
+                    .parse::<i64>()
                     .with_context(|| format!("Expected a number `{}`", number))
             })
-            .collect::<Result<Vec<i32>>>()
+            .collect::<Result<Vec<i64>>>()
     }
 
-    pub fn get(&self, i: Address) -> Result<i32> {
+    pub fn get(&self, i: Address) -> Result<i64> {
+        if i < 0 {
+            bail!("Cannot access memory at a negative offset `0x{:8x}`", i);
+        }
+
         self.memory
             .get(i as usize)
             .with_context(|| {
@@ -234,7 +259,15 @@ impl IntcodeComputer {
             .map(|i| *i)
     }
 
-    pub fn set_addr(&mut self, i: Address, value: i32) -> Result<()> {
+    pub fn set_addr(&mut self, i: Address, value: i64) -> Result<()> {
+        if i < 0 {
+            bail!(
+                "Cannot write to memory at a negative offset `0x{:8x} ({})`",
+                i,
+                i
+            );
+        }
+
         let stored = self.memory.get_mut(i as usize).with_context(|| {
             format!(
                 "Out of bounds access while writing to memory at index `{}`",
@@ -246,7 +279,7 @@ impl IntcodeComputer {
         Ok(())
     }
 
-    pub fn write_to_input(&mut self, value: Vec<i32>) -> Result<()> {
+    pub fn write_to_input(&mut self, value: Vec<i64>) -> Result<()> {
         for i in value {
             self.io.input_write(i)?;
         }
@@ -254,23 +287,32 @@ impl IntcodeComputer {
         Ok(())
     }
 
-    pub fn read_from_output(&mut self) -> Result<i32> {
+    pub fn read_from_output(&mut self) -> Result<i64> {
         self.io.output_read()
     }
 
-    pub fn into_output(self) -> VecDeque<i32> {
+    pub fn into_output(self) -> VecDeque<i64> {
         self.io.into_output()
     }
 
     pub fn run(&mut self) -> Result<ExecutionStatus> {
         loop {
             // OpCode is always first two digits of number at `i`.
-            let op = OpCode::try_from(self.get(self.eip)?)?;
-            debug!("{:?}", &op);
+            let raw = self.get(self.eip)?;
+            let op = OpCode::try_from(raw)?;
+            debug!(
+                "0x{:08x} ({:04}): `{:05}` => {:?} ",
+                self.eip, self.eip, raw, &op
+            );
 
             match &op {
-                OpCode::Binary { left, right, t } => {
-                    let (n1, n2, dest) = (
+                OpCode::Binary {
+                    left,
+                    right,
+                    dest,
+                    t,
+                } => {
+                    let (n1, n2, n3) = (
                         self.get(self.eip + 1)?,
                         self.get(self.eip + 2)?,
                         self.get(self.eip + 3)?,
@@ -279,53 +321,71 @@ impl IntcodeComputer {
                     let param1 = match left {
                         ParameterMode::Position => self.get(n1)?,
                         ParameterMode::Immediate => n1,
+                        ParameterMode::Relative => self.get(n1 + self.ebp)?,
                     };
 
                     let param2 = match right {
                         ParameterMode::Position => self.get(n2)?,
                         ParameterMode::Immediate => n2,
+                        ParameterMode::Relative => self.get(n2 + self.ebp)?,
+                    };
+
+                    let param3 = match dest {
+                        ParameterMode::Position => self.get(n3)?,
+                        ParameterMode::Immediate => n3,
+                        ParameterMode::Relative => n3 + self.ebp,
                     };
 
                     match t {
                         BinaryOperation::Addition => {
                             let result = param1 + param2;
-                            self.set_addr(dest, result)?;
+                            self.set_addr(param3, result)?;
                         }
                         BinaryOperation::Multiplication => {
                             let result = param1 * param2;
-                            self.set_addr(dest, result)?;
+                            self.set_addr(param3, result)?;
                         }
                         BinaryOperation::Equals => {
                             if param1 == param2 {
-                                self.set_addr(dest, 1)?;
+                                self.set_addr(param3, 1)?;
                             } else {
-                                self.set_addr(dest, 0)?;
+                                self.set_addr(param3, 0)?;
                             }
                         }
                         BinaryOperation::LessThan => {
                             if param1 < param2 {
-                                self.set_addr(dest, 1)?;
+                                self.set_addr(param3, 1)?;
                             } else {
-                                self.set_addr(dest, 0)?;
+                                self.set_addr(param3, 0)?;
                             }
                         }
                     };
                     self.eip += op.length()
                 }
-                OpCode::Unary { value: _, t } => {
+                OpCode::Unary { value: v, t } => {
                     let dest = self.get(self.eip + 1)?;
+
+                    let param1 = match v {
+                        ParameterMode::Position => self.get(dest)?,
+                        ParameterMode::Immediate => dest,
+                        ParameterMode::Relative => self.get(dest + self.ebp)?,
+                    };
 
                     match t {
                         UnaryOperation::Output => {
-                            self.io.write(self.get(dest)?)?;
+                            self.io.write(param1)?;
                         }
                         UnaryOperation::Store => match self.io.read() {
                             Err(_) => return Ok(ExecutionStatus::NeedInput),
                             Ok(i) => {
-                                debug!("Setting index {} to {}", dest, i);
-                                self.set_addr(dest, i)?;
+                                debug!("MEMSET: `0x{:08x}`={}", dest + self.ebp, i);
+                                self.set_addr(dest + self.ebp, i)?;
                             }
                         },
+                        UnaryOperation::AdjustRelativeBase => {
+                            debug!("EBP: {} += {}", self.ebp, param1);
+                            self.ebp += param1;
+                        }
                     };
                     self.eip += op.length()
                 }
@@ -335,11 +395,13 @@ impl IntcodeComputer {
                     let param1 = match left {
                         ParameterMode::Position => self.get(n1)?,
                         ParameterMode::Immediate => n1,
+                        ParameterMode::Relative => self.get(n1 + self.ebp)?,
                     };
 
                     let param2 = match right {
                         ParameterMode::Position => self.get(n2)?,
                         ParameterMode::Immediate => n2,
+                        ParameterMode::Relative => self.get(n2 + self.ebp)?,
                     };
 
                     match t {
@@ -359,7 +421,7 @@ impl IntcodeComputer {
                         }
                     }
 
-                    if self.eip >= self.memory.len() as i32 {
+                    if self.eip >= self.memory.len() as i64 {
                         bail!("Segfault. EIP is at {}", self.eip);
                     }
                 }
@@ -393,6 +455,7 @@ impl fmt::Display for IntcodeComputer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ParameterMode::{Immediate, Relative};
 
     macro_rules! test_memory {
         ($prog: expr, $i:expr, $o: expr) => {
@@ -401,12 +464,13 @@ mod tests {
             computer.write_to_input($i).unwrap();
 
             computer.run_until_halt().unwrap();
-            assert_eq!(computer.to_string(), $o);
+            assert!(computer.to_string().starts_with($o));
         };
     }
 
     macro_rules! test_output {
         ($prog: expr, $i:expr, $o: expr) => {
+            env_logger::try_init().ok();
             let bytecode = IntcodeComputer::parse_program($prog).unwrap();
             let mut computer = IntcodeComputer::new(bytecode);
             computer.write_to_input($i).unwrap();
@@ -440,5 +504,35 @@ mod tests {
     #[test]
     fn test_computer_input_immediate() {
         test_output!("3,3,1105,-1,9,1101,0,0,12,4,12,99,1", vec![0], vec![0]);
+    }
+
+    #[test]
+    fn test_opcode() {
+        assert_eq!(
+            OpCode::try_from(21101).unwrap(),
+            OpCode::Binary {
+                left: Immediate,
+                right: Immediate,
+                dest: Relative,
+                t: BinaryOperation::Addition
+            }
+        );
+    }
+
+    #[test]
+    fn test_relative_mode() {
+        test_output!(
+            "109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99",
+            vec![],
+            vec![109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99]
+        );
+
+        test_output!("104,1125899906842624,99", vec![], vec![1125899906842624]);
+
+        test_output!(
+            "1102,34915192,34915192,7,4,7,99,0",
+            vec![],
+            vec![1219070632396864]
+        );
     }
 }
