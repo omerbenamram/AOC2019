@@ -1,9 +1,9 @@
 use anyhow::{Context, Error, Result};
 use intcode_computer::IntcodeComputer;
 
-pub fn part_1(input: &str) -> Result<i32> {
+pub fn part_1(input: &str) -> Result<i64> {
     let memory = IntcodeComputer::parse_program(input)?;
-    let mut computer = IntcodeComputer::new(memory);
+    let mut computer = IntcodeComputer::from_program_without_extra_memory(memory);
     // restore gravity assist
     computer.set_addr(1, 12)?;
     computer.set_addr(2, 2)?;
@@ -13,13 +13,13 @@ pub fn part_1(input: &str) -> Result<i32> {
     computer.get(0).context("Expected output")
 }
 
-pub fn part_2(input: &str) -> Result<i32> {
+pub fn part_2(input: &str) -> Result<i64> {
     let program = IntcodeComputer::parse_program(input)?;
 
     for noun in 0..=99 {
         for verb in 0..=99 {
             // Clone computer here to avoid reparsing input.
-            let mut computer = IntcodeComputer::new(program.clone());
+            let mut computer = IntcodeComputer::from_program_without_extra_memory(program.clone());
             computer.set_addr(1, noun)?;
             computer.set_addr(2, verb)?;
 

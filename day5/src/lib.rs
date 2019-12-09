@@ -3,7 +3,7 @@ use intcode_computer::IntcodeComputer;
 
 pub fn part_1(input: &str) -> Result<String> {
     let bytecode = IntcodeComputer::parse_program(input)?;
-    let mut computer = IntcodeComputer::new(bytecode);
+    let mut computer = IntcodeComputer::from_program_without_extra_memory(bytecode);
     computer.write_to_input(vec![1])?;
     computer.run_until_halt()?;
 
@@ -12,7 +12,7 @@ pub fn part_1(input: &str) -> Result<String> {
 
 pub fn part_2(input: &str) -> Result<String> {
     let bytecode = IntcodeComputer::parse_program(input)?;
-    let mut computer = IntcodeComputer::new(bytecode);
+    let mut computer = IntcodeComputer::from_program_without_extra_memory(bytecode);
     computer.write_to_input(vec![5])?;
     computer.run_until_halt()?;
 

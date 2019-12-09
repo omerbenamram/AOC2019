@@ -4,12 +4,12 @@ use std::fs;
 fn benchmark(c: &mut Criterion) {
     let s = fs::read_to_string(r#"input/opcodes"#).unwrap();
 
-    c.bench_function("2019 day 7 part one", |b| {
-        b.iter(|| day7::part_1(&s));
+    c.bench_function("2019 day 9 part one", |b| {
+        b.iter(|| day9::part_1(&s));
     });
 
-    c.bench_function("2019 day 7 part two", |b| {
-        b.iter(|| day7::part_2(&s));
+    c.bench_function("2019 day 9 part two", |b| {
+        b.iter(|| day9::part_2(&s));
     });
 }
 

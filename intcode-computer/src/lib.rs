@@ -107,6 +107,15 @@ impl IntcodeComputer {
         }
     }
 
+    pub fn from_program_without_extra_memory(program: Memory) -> Self {
+        Self {
+            memory: program,
+            io: Io::new(),
+            eip: 0,
+            ebp: 0,
+        }
+    }
+
     pub fn parse_program(input: &str) -> Result<Memory> {
         input
             .trim_end()
