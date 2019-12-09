@@ -4,7 +4,7 @@ use intcode_computer::{ExecutionStatus, IntcodeComputer};
 use itertools::Itertools;
 use log::debug;
 
-pub fn part_1(input: &str) -> Result<i32> {
+pub fn part_1(input: &str) -> Result<i64> {
     let program = IntcodeComputer::parse_program(input)?;
 
     (0..=4)
@@ -14,7 +14,7 @@ pub fn part_1(input: &str) -> Result<i32> {
         .context("Expected a maximum")
 }
 
-pub fn part_2(input: &str) -> Result<i32> {
+pub fn part_2(input: &str) -> Result<i64> {
     let program = IntcodeComputer::parse_program(input)?;
 
     (5..=9)
@@ -24,11 +24,11 @@ pub fn part_2(input: &str) -> Result<i32> {
         .context("Expected a maximum")
 }
 
-fn calculate_thruster_signal(program: Vec<i32>, inputs: Vec<i32>) -> Result<i32> {
+fn calculate_thruster_signal(program: Vec<i64>, inputs: Vec<i64>) -> Result<i64> {
     // We have 5 amplifiers.
     let mut last_input = 0;
     let mut amps: Vec<IntcodeComputer> = (0..=4)
-        .map(|_| IntcodeComputer::new(program.clone()))
+        .map(|_| IntcodeComputer::from_program_without_extra_memory(program.clone()))
         .collect();
 
     for (i, amp) in amps.iter_mut().enumerate() {
@@ -43,12 +43,12 @@ fn calculate_thruster_signal(program: Vec<i32>, inputs: Vec<i32>) -> Result<i32>
     Ok(last_input)
 }
 
-fn calculate_thruster_with_feedback_loop(program: Vec<i32>, inputs: Vec<i32>) -> Result<i32> {
+fn calculate_thruster_with_feedback_loop(program: Vec<i64>, inputs: Vec<i64>) -> Result<i64> {
     let mut last_input = 0;
     let mut done = false;
 
     let mut amps: Vec<IntcodeComputer> = (0..=4)
-        .map(|_| IntcodeComputer::new(program.clone()))
+        .map(|_| IntcodeComputer::from_program_without_extra_memory(program.clone()))
         .collect();
 
     // Load settings
