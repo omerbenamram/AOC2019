@@ -12,8 +12,8 @@ fn main() -> Result<()> {
         .read_to_string(&mut input)
         .context("Failed to read input from stdin")?;
 
-    println!("Part 1 - {}", part_1(&input)?);
-    println!("Part 2 - {}", part_2(&input)?);
+    println!("Part 1 - {:?}", part_1(&input)?);
+    println!("Part 2 - {:?}", part_2(&input)?);
 
     Ok(())
 }

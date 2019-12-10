@@ -1,9 +1,9 @@
 use anyhow::{bail, Context, Result};
 use aoc_graph::Graph;
-use itertools::Itertools;
+use itertools::{all, Itertools};
 use log::debug;
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 
 type Coord = (i32, i32);
 
@@ -35,7 +35,19 @@ fn angle(a: Coord, b: Coord) -> f32 {
     dx.atan2(dy)
 }
 
-pub fn part_1(input: &str) -> Result<usize> {
+fn angle_abs(a: Coord, b: Coord) -> f32 {
+    let dx = (a.0 - b.0) as f32;
+    let dy = (a.1 - b.1) as f32;
+    let atan = dx.atan2(dy);
+
+    if atan > 0.0 {
+        (2.0 * std::f32::consts::PI - atan)
+    } else {
+        atan * -1.0
+    }
+}
+
+pub fn part_1(input: &str) -> Result<(Coord, usize)> {
     let astroids = parse_input(input);
 
     if astroids.is_empty() {
@@ -55,8 +67,8 @@ pub fn part_1(input: &str) -> Result<usize> {
                 continue;
             }
 
-            // We need to take care of special case of `0` (where slope is 0 but both left and right need to be considered)
             let angle = angle(astroid, another);
+
             graph.add_edge(astroid, another);
             edges_to_slope.insert((astroid, another), angle);
 
@@ -93,15 +105,106 @@ pub fn part_1(input: &str) -> Result<usize> {
         }
     }
 
-    Ok(visibility_graph
+    let max = visibility_graph
         .iter()
-        .map(|(v, edges)| edges.len())
-        .max()
-        .context("Inconclusive maximum")?)
+        .max_by_key(|(v, edges)| edges.len())
+        .context("Inconclusive maximum")?;
+
+    Ok((*max.0, max.1.len()))
 }
 
-pub fn part_2(input: &str) -> Result<u32> {
-    Ok((0))
+#[derive(Eq, Debug, Clone)]
+struct AstroidWithDistance {
+    coord: Coord,
+    distance: i32,
+}
+
+impl PartialEq for AstroidWithDistance {
+    fn eq(&self, other: &Self) -> bool {
+        self.distance.eq(&other.distance)
+    }
+}
+
+impl PartialOrd for AstroidWithDistance {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.distance.partial_cmp(&other.distance)
+    }
+}
+
+impl Ord for AstroidWithDistance {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.distance
+            .partial_cmp(&other.distance)
+            .unwrap_or(Ordering::Equal)
+    }
+}
+
+pub fn part_2(input: &str) -> Result<(Coord, usize)> {
+    let astroids = parse_input(input);
+
+    if astroids.is_empty() {
+        bail!("Input is empty.");
+    }
+
+    let (start, _) = part_1(input)?;
+
+    dbg!(start);
+
+    // {Angle -> [Vertex Sorted By Distance]}
+    let mut laser_queue = HashMap::new();
+    // Cannot use angle as f32 key, but we still need to know the order..
+    let mut all_angles = Vec::new();
+
+    // Build slope graph
+    for another in astroids.iter().cloned() {
+        if another == start {
+            continue;
+        }
+        let angle = angle_abs(start, another);
+        let distance = distance(start, another) * 10000.0;
+        let ast = AstroidWithDistance {
+            coord: another,
+            distance: distance.round() as i32,
+        };
+
+        all_angles.push(angle);
+
+        laser_queue
+            .entry(format!("{}", angle))
+            .or_insert_with(BinaryHeap::new)
+            .push(std::cmp::Reverse(ast));
+    }
+
+    all_angles.sort_by(|f1, f2| f1.partial_cmp(f2).unwrap_or(Ordering::Equal));
+
+    let keys: Vec<String> = all_angles
+        .iter()
+        .map(|f| format!("{}", f))
+        .dedup()
+        .collect();
+
+    let mut keys_iter = keys.iter().cycle();
+    let mut number_of_astroids_destroyed = 0;
+    let total_astroids = astroids.len();
+    let mut last_destroyed = None;
+
+    while (number_of_astroids_destroyed < 200) && (number_of_astroids_destroyed <= total_astroids) {
+        debug!("{} -> {:?}", number_of_astroids_destroyed, last_destroyed);
+        let next_angle = keys_iter.next().expect("Repeating");
+        debug!("Aligning at angle {}", next_angle);
+
+        debug!("Targets: {:?}", laser_queue.get(next_angle));
+
+        if let Some(ref mut astroids_in_angle) = laser_queue.get_mut(next_angle) {
+            if let Some(astroid) = astroids_in_angle.pop() {
+                number_of_astroids_destroyed += 1;
+                last_destroyed = Some(astroid.0.coord)
+            }
+        }
+    }
+
+    let last_result = last_destroyed.unwrap();
+    Ok((last_result, (last_result.0 * 100 + last_result.1) as usize))
 }
 
 #[cfg(test)]
@@ -139,6 +242,21 @@ mod tests {
     }
 
     #[test]
+    fn test_angle_2() {
+        assert_eq!(angle((11, 13), (11, 4)), 0.0);
+    }
+
+    #[test]
+    fn test_angle_3() {
+        assert!(angle((11, 13), (12, 1)) < angle((11, 13), (10, 1)));
+    }
+
+    #[test]
+    fn test_angle_4() {
+        assert_eq!(angle((11, 13), (12, 1)), 0.0);
+    }
+
+    #[test]
     fn test_part1_210() {
         env_logger::try_init().ok();
 
@@ -167,8 +285,43 @@ mod tests {
 ###.##.####.##.#..##
 "
             )
-            .unwrap(),
+            .unwrap()
+            .1,
             210
+        )
+    }
+
+    #[test]
+    fn test_part2() {
+        env_logger::try_init().ok();
+
+        assert_eq!(
+            part_2(
+                "
+.#..##.###...#######
+##.############..##.
+.#.######.########.#
+.###.#######.####.#.
+#####.##.#.##.###.##
+..#####..#.#########
+####################
+#.####....###.#.#.##
+##.#################
+#####.##.###..####..
+..######..##.#######
+####.##.####...##..#
+.#####..#.######.###
+##...#.##########...
+#.##########.#######
+.####.#.###.###.#.##
+....##.##.###..#####
+.#.#.###########.###
+#.#.#.#####.####.###
+###.##.####.##.#..##
+"
+            )
+            .unwrap(),
+            (8, 2)
         )
     }
 
@@ -191,7 +344,8 @@ mod tests {
 .....#.#..
 "
             )
-            .unwrap(),
+            .unwrap()
+            .1,
             41
         );
     }
@@ -207,7 +361,8 @@ mod tests {
 ...##
 "
             )
-            .unwrap(),
+            .unwrap()
+            .1,
             8
         );
         assert_eq!(
@@ -225,7 +380,8 @@ mod tests {
 .#....####
 "
             )
-            .unwrap(),
+            .unwrap()
+            .1,
             33
         );
     }
