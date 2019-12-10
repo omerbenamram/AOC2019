@@ -2,14 +2,14 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use std::fs;
 
 fn benchmark(c: &mut Criterion) {
-    let s = fs::read_to_string(r#"input/orbital_map"#).unwrap();
+    let s = fs::read_to_string(r#"input/astroid_map"#).unwrap();
 
-    c.bench_function("2019 day 6 part one", |b| {
-        b.iter(|| day6::part_1(&s));
+    c.bench_function("2019 day 10 part one", |b| {
+        b.iter(|| day10::part_1(&s));
     });
 
-    c.bench_function("2019 day 6 part two", |b| {
-        b.iter(|| day6::part_2(&s));
+    c.bench_function("2019 day 10 part two", |b| {
+        b.iter(|| day10::part_2(&s));
     });
 }
 

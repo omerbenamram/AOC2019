@@ -1,9 +1,9 @@
 use anyhow::{bail, Context, Result};
 use aoc_graph::Graph;
-use itertools::{all, Itertools};
+use itertools::{Itertools};
 use log::debug;
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
+use std::collections::{BinaryHeap, HashMap};
 
 type Coord = (i32, i32);
 
@@ -81,7 +81,7 @@ pub fn part_1(input: &str) -> Result<(Coord, usize)> {
     let mut visibility_graph = Graph::new();
 
     for (vertex, edges) in graph.into_iter() {
-        for (slope, edges) in &edges
+        for (_slope, edges) in &edges
             .into_iter()
             .sorted_by(|edge_1, edge_2| {
                 edges_to_slope
@@ -107,7 +107,7 @@ pub fn part_1(input: &str) -> Result<(Coord, usize)> {
 
     let max = visibility_graph
         .iter()
-        .max_by_key(|(v, edges)| edges.len())
+        .max_by_key(|(_v, edges)| edges.len())
         .context("Inconclusive maximum")?;
 
     Ok((*max.0, max.1.len()))
