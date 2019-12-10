@@ -1,9 +1,8 @@
 use anyhow::{bail, Context, Result};
-use aoc_graph::Graph;
-use itertools::{Itertools};
+use itertools::Itertools;
 use log::debug;
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::{BinaryHeap, HashMap, HashSet};
 
 type Coord = (i32, i32);
 
@@ -29,7 +28,7 @@ fn distance(a: Coord, b: Coord) -> f32 {
     (((a.0 - b.0).pow(2) + (a.1 - b.1).pow(2)) as f32).sqrt()
 }
 
-fn angle(a: Coord, b: Coord) -> f32 {
+fn angle(a: &Coord, b: &Coord) -> f32 {
     let dx = (a.0 - b.0) as f32;
     let dy = (a.1 - b.1) as f32;
     dx.atan2(dy)
@@ -47,6 +46,22 @@ fn angle_abs(a: Coord, b: Coord) -> f32 {
     }
 }
 
+/// How many different angles can we see from our asteroid?
+fn count_visible_astroids(astroids: &Vec<Coord>, asteroid: &Coord) -> usize {
+    let mut visible_count = HashSet::new();
+
+    for another in astroids.iter() {
+        if asteroid == another {
+            continue;
+        }
+
+        let angle = (angle(asteroid, another) * 10000.0) as i32;
+        visible_count.insert(angle);
+    }
+
+    visible_count.len()
+}
+
 pub fn part_1(input: &str) -> Result<(Coord, usize)> {
     let astroids = parse_input(input);
 
@@ -54,84 +69,34 @@ pub fn part_1(input: &str) -> Result<(Coord, usize)> {
         bail!("Input is empty.");
     }
 
-    let mut edges_to_slope = HashMap::new();
-    let mut graph = Graph::new();
-
-    // Build slope graph
-    for astroid in astroids.iter().cloned() {
-        for another in astroids.iter().cloned() {
-            if astroid == another {
-                continue;
-            }
-            if graph.are_connected(&astroid, &another) {
-                continue;
-            }
-
-            let angle = angle(astroid, another);
-
-            graph.add_edge(astroid, another);
-            edges_to_slope.insert((astroid, another), angle);
-
-            graph.add_edge(another, astroid);
-            edges_to_slope.insert((another, astroid), std::f32::consts::PI - angle);
-        }
-    }
-
-    // For each two lines with the same slope, only the two
-    let mut visibility_graph = Graph::new();
-
-    for (vertex, edges) in graph.into_iter() {
-        for (_slope, edges) in &edges
-            .into_iter()
-            .sorted_by(|edge_1, edge_2| {
-                edges_to_slope
-                    .get(&(vertex, *edge_1))
-                    .unwrap()
-                    .partial_cmp(edges_to_slope.get(&(vertex, *edge_2)).unwrap())
-                    .unwrap_or(Ordering::Equal)
-            })
-            .group_by(|&another| edges_to_slope.get(&(vertex, another)).expect("inserted"))
-        {
-            let edges = edges.collect::<Vec<Coord>>();
-
-            let closest = edges
-                .into_iter()
-                .map(|another| (another, distance(vertex, another)))
-                .min_by(|edge_1, edge_2| edge_1.1.partial_cmp(&edge_2.1).unwrap_or(Ordering::Less))
-                .context("A minimum should exist")?;
-
-            visibility_graph.add_edge(vertex, closest.0);
-            visibility_graph.add_edge(closest.0, vertex);
-        }
-    }
-
-    let max = visibility_graph
+    let max: (Coord, usize) = astroids
         .iter()
-        .max_by_key(|(_v, edges)| edges.len())
+        .map(|&astroid| (astroid, count_visible_astroids(&astroids, &astroid)))
+        .max_by_key(|(_v, visible_count)| visible_count.clone())
         .context("Inconclusive maximum")?;
 
-    Ok((*max.0, max.1.len()))
+    Ok((max.0, max.1 as usize))
 }
 
 #[derive(Eq, Debug, Clone)]
-struct AstroidWithDistance {
+struct AsteroidWithDistance {
     coord: Coord,
     distance: i32,
 }
 
-impl PartialEq for AstroidWithDistance {
+impl PartialEq for AsteroidWithDistance {
     fn eq(&self, other: &Self) -> bool {
         self.distance.eq(&other.distance)
     }
 }
 
-impl PartialOrd for AstroidWithDistance {
+impl PartialOrd for AsteroidWithDistance {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.distance.partial_cmp(&other.distance)
     }
 }
 
-impl Ord for AstroidWithDistance {
+impl Ord for AsteroidWithDistance {
     fn cmp(&self, other: &Self) -> Ordering {
         self.distance
             .partial_cmp(&other.distance)
@@ -140,9 +105,9 @@ impl Ord for AstroidWithDistance {
 }
 
 pub fn part_2(input: &str) -> Result<(Coord, usize)> {
-    let astroids = parse_input(input);
+    let asteroids = parse_input(input);
 
-    if astroids.is_empty() {
+    if asteroids.is_empty() {
         bail!("Input is empty.");
     }
 
@@ -154,13 +119,13 @@ pub fn part_2(input: &str) -> Result<(Coord, usize)> {
     let mut all_angles = Vec::new();
 
     // Build slope graph
-    for another in astroids.iter().cloned() {
+    for another in asteroids.iter().cloned() {
         if another == start {
             continue;
         }
         let angle = angle_abs(start, another);
         let distance = distance(start, another) * 10000.0;
-        let ast = AstroidWithDistance {
+        let ast = AsteroidWithDistance {
             coord: another,
             distance: distance.round() as i32,
         };
@@ -183,7 +148,7 @@ pub fn part_2(input: &str) -> Result<(Coord, usize)> {
 
     let mut keys_iter = keys.iter().cycle();
     let mut number_of_astroids_destroyed = 0;
-    let total_astroids = astroids.len();
+    let total_astroids = asteroids.len();
     let mut last_destroyed = None;
 
     while (number_of_astroids_destroyed < 200) && (number_of_astroids_destroyed <= total_astroids) {
