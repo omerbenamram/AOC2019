@@ -81,30 +81,28 @@ pub fn part_1(input: &str) -> Result<(Coord, usize)> {
         bail!("Input is empty.");
     }
 
-    let max: (Coord, usize) = best_asteroid(&asteroids)?;
-
-    Ok((max.0, max.1 as usize))
+    best_asteroid(&asteroids)
 }
 
 #[derive(Eq, Debug, Clone)]
-struct AsteroidWithDistance {
+struct Target {
     coord: Coord,
     distance: i32,
 }
 
-impl PartialEq for AsteroidWithDistance {
+impl PartialEq for Target {
     fn eq(&self, other: &Self) -> bool {
         self.distance.eq(&other.distance)
     }
 }
 
-impl PartialOrd for AsteroidWithDistance {
+impl PartialOrd for Target {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.distance.partial_cmp(&other.distance)
     }
 }
 
-impl Ord for AsteroidWithDistance {
+impl Ord for Target {
     fn cmp(&self, other: &Self) -> Ordering {
         self.distance
             .partial_cmp(&other.distance)
@@ -119,26 +117,26 @@ pub fn part_2(input: &str) -> Result<(Coord, usize)> {
         bail!("Input is empty.");
     }
 
-    let (start, _) = best_asteroid(&asteroids)?;
+    let (origin, _) = best_asteroid(&asteroids)?;
 
-    // {Angle -> BinaryHeap[Vertex sorted by distance]}.
+    // {Angle -> (Minimum)BinaryHeap[Vertex sorted by distance]}.
     let mut laser_queue = HashMap::new();
 
     // We cannot use angle as f32 key, but we still need to know the order..
     let mut all_angles = Vec::new();
 
     // Clone the len here since we move out of `asteroids`.
-    let total_astroids = asteroids.len();
+    let total_asteroids = asteroids.len();
 
-    // Build slope graph
-    for another in asteroids.into_iter() {
-        if another == start {
+    for asteroid in asteroids.into_iter() {
+        if asteroid == origin {
             continue;
         }
-        let angle = angle_abs(&start, &another);
-        let distance = distance(&start, &another) * 10000.0;
-        let ast = AsteroidWithDistance {
-            coord: another,
+        let angle = angle_abs(&origin, &asteroid);
+        let distance = distance(&origin, &asteroid) * 10000.0;
+
+        let target = Target {
+            coord: asteroid,
             distance: distance.round() as i32,
         };
 
@@ -147,9 +145,10 @@ pub fn part_2(input: &str) -> Result<(Coord, usize)> {
         laser_queue
             .entry(format!("{}", angle))
             .or_insert_with(BinaryHeap::new)
-            .push(std::cmp::Reverse(ast));
+            .push(std::cmp::Reverse(target));
     }
 
+    // 0 is up, than we iterator clockwise.
     all_angles.sort_by(|f1, f2| f1.partial_cmp(f2).unwrap_or(Ordering::Equal));
 
     let keys: Vec<String> = all_angles
@@ -162,17 +161,18 @@ pub fn part_2(input: &str) -> Result<(Coord, usize)> {
     let mut number_of_astroids_destroyed = 0;
     let mut last_destroyed = None;
 
-    while (number_of_astroids_destroyed < 200) && (number_of_astroids_destroyed <= total_astroids) {
+    while (number_of_astroids_destroyed < 200) && (number_of_astroids_destroyed <= total_asteroids)
+    {
         debug!("{} -> {:?}", number_of_astroids_destroyed, last_destroyed);
-        let next_angle = keys_iter.next().expect("Repeating");
+        let next_angle = keys_iter.next().expect("This iterator is repeating");
 
         debug!("Aligning at angle {}", next_angle);
         debug!("Targets: {:?}", laser_queue.get(next_angle));
 
         if let Some(ref mut astroids_in_angle) = laser_queue.get_mut(next_angle) {
-            if let Some(astroid) = astroids_in_angle.pop() {
+            if let Some(std::cmp::Reverse(asteroid)) = astroids_in_angle.pop() {
                 number_of_astroids_destroyed += 1;
-                last_destroyed = Some(astroid.0.coord)
+                last_destroyed = Some(asteroid.coord)
             }
         }
     }
