@@ -250,11 +250,6 @@ mod tests {
     }
 
     #[test]
-    fn test_angle_4() {
-        assert_eq!(angle((11, 13), (12, 1)), 0.0);
-    }
-
-    #[test]
     fn test_part1_210() {
         env_logger::try_init().ok();
 
@@ -319,7 +314,7 @@ mod tests {
 "
             )
             .unwrap(),
-            (8, 2)
+            ((8, 2), 802)
         )
     }
 
