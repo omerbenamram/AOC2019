@@ -52,7 +52,7 @@ fn angle_abs<T: Borrow<Coord>>(a: T, b: T) -> f32 {
 
 /// How many different angles can we see from our asteroid?
 fn count_visible_asteroids(asteroids: &Vec<Coord>, asteroid: &Coord) -> usize {
-    let mut visible_count = HashSet::new();
+    let mut visible_count = HashSet::with_capacity(asteroids.len());
 
     for another in asteroids.iter() {
         if asteroid == another {
