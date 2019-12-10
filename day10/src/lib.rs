@@ -25,7 +25,7 @@ fn parse_input(input: &str) -> Vec<Coord> {
         .collect()
 }
 
-fn distance(a: Coord, b: Coord) -> f32 {
+fn distance(a: &Coord, b: &Coord) -> f32 {
     (((a.0 - b.0).pow(2) + (a.1 - b.1).pow(2)) as f32).sqrt()
 }
 
@@ -37,7 +37,8 @@ fn angle<T: Borrow<Coord>>(a: T, b: T) -> f32 {
 }
 
 /// Absolute angle relative to "up" direction of canon.
-fn angle_abs(a: Coord, b: Coord) -> f32 {
+fn angle_abs<T: Borrow<Coord>>(a: T, b: T) -> f32 {
+    let (a, b) = (a.borrow(), b.borrow());
     let dx = (a.0 - b.0) as f32;
     let dy = (a.1 - b.1) as f32;
     let atan = dx.atan2(dy);
@@ -120,18 +121,22 @@ pub fn part_2(input: &str) -> Result<(Coord, usize)> {
 
     let (start, _) = best_asteroid(&asteroids)?;
 
-    // {Angle -> [Vertex Sorted By Distance]}
+    // {Angle -> BinaryHeap[Vertex sorted by distance]}.
     let mut laser_queue = HashMap::new();
-    // Cannot use angle as f32 key, but we still need to know the order..
+
+    // We cannot use angle as f32 key, but we still need to know the order..
     let mut all_angles = Vec::new();
 
+    // Clone the len here since we move out of `asteroids`.
+    let total_astroids = asteroids.len();
+
     // Build slope graph
-    for another in asteroids.iter().cloned() {
+    for another in asteroids.into_iter() {
         if another == start {
             continue;
         }
-        let angle = angle_abs(start, another);
-        let distance = distance(start, another) * 10000.0;
+        let angle = angle_abs(&start, &another);
+        let distance = distance(&start, &another) * 10000.0;
         let ast = AsteroidWithDistance {
             coord: another,
             distance: distance.round() as i32,
@@ -155,14 +160,13 @@ pub fn part_2(input: &str) -> Result<(Coord, usize)> {
 
     let mut keys_iter = keys.iter().cycle();
     let mut number_of_astroids_destroyed = 0;
-    let total_astroids = asteroids.len();
     let mut last_destroyed = None;
 
     while (number_of_astroids_destroyed < 200) && (number_of_astroids_destroyed <= total_astroids) {
         debug!("{} -> {:?}", number_of_astroids_destroyed, last_destroyed);
         let next_angle = keys_iter.next().expect("Repeating");
-        debug!("Aligning at angle {}", next_angle);
 
+        debug!("Aligning at angle {}", next_angle);
         debug!("Targets: {:?}", laser_queue.get(next_angle));
 
         if let Some(ref mut astroids_in_angle) = laser_queue.get_mut(next_angle) {
