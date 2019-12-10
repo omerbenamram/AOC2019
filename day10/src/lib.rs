@@ -122,9 +122,6 @@ pub fn part_2(input: &str) -> Result<(Coord, usize)> {
     // {Angle -> (Minimum)BinaryHeap[Vertex sorted by distance]}.
     let mut laser_queue = HashMap::new();
 
-    // We cannot use angle as f32 key, but we still need to know the order..
-    let mut all_angles = Vec::new();
-
     // Clone the len here since we move out of `asteroids`.
     let total_asteroids = asteroids.len();
 
@@ -132,32 +129,22 @@ pub fn part_2(input: &str) -> Result<(Coord, usize)> {
         if asteroid == origin {
             continue;
         }
-        let angle = angle_abs(&origin, &asteroid);
-        let distance = distance(&origin, &asteroid) * 10000.0;
+
+        let angle_key = (angle_abs(&origin, &asteroid) * 10000.0).round() as i32;
+        let distance_key = (distance(&origin, &asteroid) * 10000.0).round() as i32;
 
         let target = Target {
             coord: asteroid,
-            distance: distance.round() as i32,
+            distance: distance_key,
         };
 
-        all_angles.push(angle);
-
         laser_queue
-            .entry(format!("{}", angle))
+            .entry(angle_key)
             .or_insert_with(BinaryHeap::new)
             .push(std::cmp::Reverse(target));
     }
 
-    // 0 is up, than we iterator clockwise.
-    all_angles.sort_by(|f1, f2| f1.partial_cmp(f2).unwrap_or(Ordering::Equal));
-
-    let keys: Vec<String> = all_angles
-        .iter()
-        .map(|f| format!("{}", f))
-        .dedup()
-        .collect();
-
-    let mut keys_iter = keys.iter().cycle();
+    let mut keys_iter = laser_queue.keys().cloned().sorted().cycle();
     let mut number_of_astroids_destroyed = 0;
     let mut last_destroyed = None;
 
@@ -167,9 +154,9 @@ pub fn part_2(input: &str) -> Result<(Coord, usize)> {
         let next_angle = keys_iter.next().expect("This iterator is repeating");
 
         debug!("Aligning at angle {}", next_angle);
-        debug!("Targets: {:?}", laser_queue.get(next_angle));
+        debug!("Targets: {:?}", laser_queue.get(&next_angle));
 
-        if let Some(ref mut astroids_in_angle) = laser_queue.get_mut(next_angle) {
+        if let Some(ref mut astroids_in_angle) = laser_queue.get_mut(&next_angle) {
             if let Some(std::cmp::Reverse(asteroid)) = astroids_in_angle.pop() {
                 number_of_astroids_destroyed += 1;
                 last_destroyed = Some(asteroid.coord)
