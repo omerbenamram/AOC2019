@@ -65,6 +65,14 @@ fn count_visible_asteroids(asteroids: &Vec<Coord>, asteroid: &Coord) -> usize {
     visible_count.len()
 }
 
+fn best_asteroid(asteroids: &Vec<Coord>) -> Result<(Coord, usize)> {
+    asteroids
+        .iter()
+        .map(|&astroid| (astroid, count_visible_asteroids(&asteroids, &astroid)))
+        .max_by_key(|(_v, visible_count)| visible_count.clone())
+        .context("Inconclusive maximum")
+}
+
 pub fn part_1(input: &str) -> Result<(Coord, usize)> {
     let asteroids = parse_input(input);
 
@@ -72,11 +80,7 @@ pub fn part_1(input: &str) -> Result<(Coord, usize)> {
         bail!("Input is empty.");
     }
 
-    let max: (Coord, usize) = asteroids
-        .iter()
-        .map(|&astroid| (astroid, count_visible_asteroids(&asteroids, &astroid)))
-        .max_by_key(|(_v, visible_count)| visible_count.clone())
-        .context("Inconclusive maximum")?;
+    let max: (Coord, usize) = best_asteroid(&asteroids)?;
 
     Ok((max.0, max.1 as usize))
 }
@@ -114,7 +118,7 @@ pub fn part_2(input: &str) -> Result<(Coord, usize)> {
         bail!("Input is empty.");
     }
 
-    let (start, _) = part_1(input)?;
+    let (start, _) = best_asteroid(&asteroids)?;
 
     // {Angle -> [Vertex Sorted By Distance]}
     let mut laser_queue = HashMap::new();
