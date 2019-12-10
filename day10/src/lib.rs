@@ -148,8 +148,6 @@ pub fn part_2(input: &str) -> Result<(Coord, usize)> {
 
     let (start, _) = part_1(input)?;
 
-    dbg!(start);
-
     // {Angle -> [Vertex Sorted By Distance]}
     let mut laser_queue = HashMap::new();
     // Cannot use angle as f32 key, but we still need to know the order..
