@@ -1,6 +1,7 @@
 use anyhow::{bail, Context, Result};
 use itertools::Itertools;
 use log::debug;
+use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 
@@ -28,12 +29,14 @@ fn distance(a: Coord, b: Coord) -> f32 {
     (((a.0 - b.0).pow(2) + (a.1 - b.1).pow(2)) as f32).sqrt()
 }
 
-fn angle(a: &Coord, b: &Coord) -> f32 {
+fn angle<T: Borrow<Coord>>(a: T, b: T) -> f32 {
+    let (a, b) = (a.borrow(), b.borrow());
     let dx = (a.0 - b.0) as f32;
     let dy = (a.1 - b.1) as f32;
     dx.atan2(dy)
 }
 
+/// Absolute angle relative to "up" direction of canon.
 fn angle_abs(a: Coord, b: Coord) -> f32 {
     let dx = (a.0 - b.0) as f32;
     let dy = (a.1 - b.1) as f32;
@@ -47,10 +50,10 @@ fn angle_abs(a: Coord, b: Coord) -> f32 {
 }
 
 /// How many different angles can we see from our asteroid?
-fn count_visible_astroids(astroids: &Vec<Coord>, asteroid: &Coord) -> usize {
+fn count_visible_asteroids(asteroids: &Vec<Coord>, asteroid: &Coord) -> usize {
     let mut visible_count = HashSet::new();
 
-    for another in astroids.iter() {
+    for another in asteroids.iter() {
         if asteroid == another {
             continue;
         }
@@ -63,15 +66,15 @@ fn count_visible_astroids(astroids: &Vec<Coord>, asteroid: &Coord) -> usize {
 }
 
 pub fn part_1(input: &str) -> Result<(Coord, usize)> {
-    let astroids = parse_input(input);
+    let asteroids = parse_input(input);
 
-    if astroids.is_empty() {
+    if asteroids.is_empty() {
         bail!("Input is empty.");
     }
 
-    let max: (Coord, usize) = astroids
+    let max: (Coord, usize) = asteroids
         .iter()
-        .map(|&astroid| (astroid, count_visible_astroids(&astroids, &astroid)))
+        .map(|&astroid| (astroid, count_visible_asteroids(&asteroids, &astroid)))
         .max_by_key(|(_v, visible_count)| visible_count.clone())
         .context("Inconclusive maximum")?;
 
