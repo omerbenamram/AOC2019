@@ -1,0 +1,1 @@
+Get-Content .\input\astroid_map | cargo run --release --
