@@ -1,11 +1,11 @@
+#![deny(unused_must_use)]
+
 use anyhow::Error;
-#[deny(unused_must_use)]
 use anyhow::{bail, Context, Result};
 use intcode_computer::{ExecutionStatus, IntcodeComputer};
 use log::debug;
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::ops;
 
 #[derive(Debug, Clone, Copy)]
 enum Direction {
@@ -122,7 +122,7 @@ pub fn part_2(input: &str) -> Result<()> {
             if j % 10 == 0 {
                 print!(" ")
             }
-            match tiles.get(&(j, -1 * i)) {
+            match tiles.get(&(j, -i)) {
                 Some(Color::White) => print!("#"),
                 Some(Color::Black) => print!("."),
                 _ => print!("."),

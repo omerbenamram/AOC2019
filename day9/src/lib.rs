@@ -1,4 +1,4 @@
-#[deny(unused_must_use)]
+#![deny(unused_must_use)]
 use anyhow::{Context, Result};
 use intcode_computer::IntcodeComputer;
 
