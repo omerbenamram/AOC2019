@@ -66,14 +66,15 @@ fn calculate_thruster_with_feedback_loop(program: Vec<i64>, inputs: Vec<i64>) ->
             debug!("Amplifier {} - Input is {:?}", i, last_input);
             amp.write_to_input(vec![last_input])?;
 
-            match amp.run()? {
+            match amp.step()? {
                 ExecutionStatus::NeedInput => {
                     debug!("Amplifier {} needs input", i);
                 }
-                ExecutionStatus::Done => {
+                ExecutionStatus::Halted => {
                     debug!("Amplifier {} is done", i);
                     done = true
                 }
+                _ => {}
             }
 
             last_input = amp.read_from_output()?;

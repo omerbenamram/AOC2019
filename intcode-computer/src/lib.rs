@@ -85,7 +85,7 @@ enum OpCode {
 #[derive(Debug)]
 pub struct IntcodeComputer {
     memory: Memory,
-    io: Io,
+    pub io: Io,
     eip: i64,
     ebp: i64,
 }
@@ -93,6 +93,7 @@ pub struct IntcodeComputer {
 #[derive(Debug)]
 pub enum ExecutionStatus {
     NeedInput,
+    Halted,
     Done,
 }
 
@@ -309,73 +310,77 @@ impl IntcodeComputer {
         Ok(op)
     }
 
-    pub fn run(&mut self) -> Result<ExecutionStatus> {
-        loop {
-            let op = self.read_opcode()?;
+    pub fn step(&mut self) -> Result<ExecutionStatus> {
+        let op = self.read_opcode()?;
 
-            match &op {
-                OpCode::Binary {
-                    left,
-                    right,
-                    dest,
-                    t,
-                } => {
-                    let left = self.load(left)?;
-                    let right = self.load(right)?;
-                    let result = t.eval(left, right);
-                    self.set_addr(*dest, result)?;
-                }
-                OpCode::Input { address } => match self.io.read() {
-                    Err(_) => return Ok(ExecutionStatus::NeedInput),
-                    Ok(i) => {
-                        trace!("MEMSET: `0x{:08x}`={}", address, i);
-                        self.set_addr(*address, i)?;
-                    }
-                },
-                OpCode::Output { value } => {
-                    self.io.write(self.load(value)?)?;
-                }
-                OpCode::AdjustRelativeBase { value } => {
-                    let value = self.load(value)?;
-                    trace!("EBP: {} += {}", self.ebp, value);
-                    self.ebp += value;
-                }
-                OpCode::Jump {
-                    condition: left,
-                    right,
-                    t,
-                } => {
-                    let condition = self.load(left)?;
-                    let right = self.load(right)?;
-
-                    match t {
-                        JumpOperation::JumpIfTrue => {
-                            if condition != 0 {
-                                self.eip = right
-                            }
-                        }
-                        JumpOperation::JumpIfFalse => {
-                            if condition == 0 {
-                                self.eip = right
-                            }
-                        }
-                    }
-                }
-                OpCode::Halt => break,
+        match &op {
+            OpCode::Binary {
+                left,
+                right,
+                dest,
+                t,
+            } => {
+                let left = self.load(left)?;
+                let right = self.load(right)?;
+                let result = t.eval(left, right);
+                self.set_addr(*dest, result)?;
             }
+            OpCode::Input { address } => match self.io.read() {
+                Err(_) => {
+                    self.eip -= 2;
+                    debug!("NEED INPUT");
+                    return Ok(ExecutionStatus::NeedInput);
+                }
+                Ok(i) => {
+                    trace!("MEMSET: `0x{:08x}`={}", address, i);
+                    self.set_addr(*address, i)?;
+                }
+            },
+            OpCode::Output { value } => {
+                self.io.write(self.load(value)?)?;
+            }
+            OpCode::AdjustRelativeBase { value } => {
+                let value = self.load(value)?;
+                trace!("EBP: {} += {}", self.ebp, value);
+                self.ebp += value;
+            }
+            OpCode::Jump {
+                condition: left,
+                right,
+                t,
+            } => {
+                let condition = self.load(left)?;
+                let right = self.load(right)?;
+
+                match t {
+                    JumpOperation::JumpIfTrue => {
+                        if condition != 0 {
+                            self.eip = right
+                        }
+                    }
+                    JumpOperation::JumpIfFalse => {
+                        if condition == 0 {
+                            self.eip = right
+                        }
+                    }
+                }
+            }
+            OpCode::Halt => return Ok(ExecutionStatus::Halted),
         }
 
         Ok(ExecutionStatus::Done)
     }
 
     pub fn run_until_halt(&mut self) -> Result<()> {
-        match self.run() {
-            Ok(status) => match status {
+        loop {
+            let status = self.step()?;
+            match status {
                 ExecutionStatus::NeedInput => return Err(Error::msg("EOF")),
-                ExecutionStatus::Done => Ok(()),
-            },
-            Err(e) => Err(e),
+                ExecutionStatus::Halted => return Ok(()),
+                ExecutionStatus::Done => {}
+            }
         }
+        Ok(())
     }
 }
 

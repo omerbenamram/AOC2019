@@ -1,4 +1,5 @@
 use anyhow::{Error, Result};
+use log::debug;
 use std::collections::VecDeque;
 
 #[derive(Debug)]
@@ -34,6 +35,7 @@ impl Io {
 
     /// Read from input
     pub fn read(&mut self) -> Result<i64, Error> {
+        debug!("INPUT: {:?}", &self.input);
         self.input.pop_front().ok_or(Error::msg("EOF"))
     }
 
