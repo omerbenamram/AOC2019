@@ -18,7 +18,7 @@ path = "./src/main.rs"
 anyhow = "1.0.25"
 intcode_computer = {path = "../intcode-computer"}
 itertools = "*"
-log = "*"
+log = {version = "*" , features=["release_max_level_off"]}
 env_logger = "*"
 
 [dev-dependencies]

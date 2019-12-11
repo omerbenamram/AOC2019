@@ -380,7 +380,6 @@ impl IntcodeComputer {
                 ExecutionStatus::Done => {}
             }
         }
-        Ok(())
     }
 }
 

@@ -45,7 +45,6 @@ fn calculate_thruster_signal(program: Vec<i64>, inputs: Vec<i64>) -> Result<i64>
 
 fn calculate_thruster_with_feedback_loop(program: Vec<i64>, inputs: Vec<i64>) -> Result<i64> {
     let mut last_input = 0;
-    let mut done = false;
 
     let mut amps: Vec<IntcodeComputer> = (0..=4)
         .map(|_| IntcodeComputer::from_program_without_extra_memory(program.clone()))
@@ -61,22 +60,24 @@ fn calculate_thruster_with_feedback_loop(program: Vec<i64>, inputs: Vec<i64>) ->
 
     debug!("---------- START ------------------");
 
-    while !done {
+    'outer: loop {
         for (amp, i) in amps.iter_mut().zip(5..=9) {
             debug!("Amplifier {} - Input is {:?}", i, last_input);
             amp.write_to_input(vec![last_input])?;
 
-            match amp.step()? {
-                ExecutionStatus::NeedInput => {
-                    debug!("Amplifier {} needs input", i);
+            'inner: loop {
+                match amp.step()? {
+                    ExecutionStatus::NeedInput => {
+                        debug!("Amplifier {} needs input", i);
+                        break 'inner;
+                    }
+                    ExecutionStatus::Halted => {
+                        debug!("Amplifier {} is done", i);
+                        break 'outer;
+                    }
+                    _ => {}
                 }
-                ExecutionStatus::Halted => {
-                    debug!("Amplifier {} is done", i);
-                    done = true
-                }
-                _ => {}
             }
-
             last_input = amp.read_from_output()?;
 
             debug!("Output from Amplifier {} is {:?}", i, last_input);
