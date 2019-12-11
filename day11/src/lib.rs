@@ -82,10 +82,6 @@ fn tiles(robot: &mut IntcodeComputer, start_color: Color) -> Result<HashMap<Coor
             .read_from_output()
             .context("Expected robot to provide a new direction")?;
 
-        if !robot.read_from_output().is_err() {
-            bail!("Too much output")
-        }
-
         // Paint panel
         debug!("PAINTING {:?}, {:?}", position, new_panel_color);
         *panel = new_panel_color;
