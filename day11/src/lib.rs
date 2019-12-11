@@ -57,7 +57,7 @@ fn tiles(robot: &mut IntcodeComputer, start_color: Color) -> Result<HashMap<Coor
     let mut position = (0, 0);
     let mut robot_direction = Direction::Up;
     let mut visited_tiles = HashMap::new();
-    visited_tiles.insert(position, Color::White);
+    visited_tiles.insert(position, start_color);
 
     'outer: loop {
         let panel = visited_tiles.entry(position).or_insert(Color::Black);
