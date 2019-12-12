@@ -1,0 +1,23 @@
+[package]
+name = "day12"
+version = "0.1.0"
+authors = ["Omer Ben-Amram <omerbenamram@gmail.com>"]
+edition = "2018"
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "day12"
+path = "./src/lib.rs"
+
+[[bin]]
+name = "day12"
+path = "./src/main.rs"
+
+[dependencies]
+anyhow = "1.0.25"
+itertools = "*"
+log = {version = "*" , features=["release_max_level_off"]}
+env_logger = "0.4"
+regex = "1"
+lazy_static = "1.4.0"
