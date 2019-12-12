@@ -2,13 +2,9 @@
 
 use anyhow::{bail, Context, Error, Result};
 use lazy_static::lazy_static;
-use log::debug;
 use regex::Regex;
 use std::cmp::Ordering;
-use std::collections::HashMap;
-use std::convert::TryFrom;
-use std::fmt::{Display, Formatter};
-use std::ops::Add;
+use std::fmt::Formatter;
 use std::str::FromStr;
 use std::{fmt, ops};
 
@@ -112,38 +108,60 @@ impl FromStr for Moon {
     }
 }
 
-pub fn part_1(input: &str) -> Result<i32> {
-    let mut moons: Vec<Moon> = input
-        .lines()
-        .map(Moon::from_str)
-        .collect::<Result<Vec<Moon>>>()?;
+pub struct Simulation(Vec<Moon>);
 
-    if moons.is_empty() {
-        bail!("Expected input");
+impl FromStr for Simulation {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let moons: Vec<Moon> = s
+            .lines()
+            .map(Moon::from_str)
+            .collect::<Result<Vec<Moon>>>()?;
+
+        if moons.is_empty() {
+            bail!("Expected input");
+        }
+
+        Ok(Simulation(moons))
     }
+}
 
-    for generation in 0..1000 {
+impl Simulation {
+    pub fn step(&mut self) {
         if log::log_enabled!(log::Level::Debug) {
-            for moon in moons.iter() {
+            for moon in self.0.iter() {
                 println!("{}", moon);
             }
             println!("---------------------")
         }
 
-        let copy = moons.clone();
+        let copy = self.0.clone();
 
-        for moon in moons.iter_mut() {
+        for moon in self.0.iter_mut() {
             for other in &copy {
                 moon.apply_gravity(other);
             }
         }
 
-        for moon in moons.iter_mut() {
+        for moon in self.0.iter_mut() {
             moon.apply_velocity();
         }
     }
 
-    Ok(moons.iter().map(|moon| moon.potential_energy()).sum())
+    pub fn total_potential_energy(&self) -> i32 {
+        self.0.iter().map(|moon| moon.potential_energy()).sum()
+    }
+}
+
+pub fn part_1(input: &str) -> Result<i32> {
+    let mut moons = Simulation::from_str(input)?;
+
+    for _ in 0..1000 {
+        moons.step()
+    }
+
+    Ok(moons.total_potential_energy())
 }
 
 pub fn part_2(input: &str) -> Result<i32> {
@@ -171,16 +189,18 @@ mod test {
 
     #[test]
     fn test_part_1() {
-        assert_eq!(
-            part_1(
-                "<x=-1, y=0, z=2>
+        let mut simulation = Simulation::from_str(
+            "<x=-1, y=0, z=2>
 <x=2, y=-10, z=-7>
 <x=4, y=-8, z=8>
 <x=3, y=5, z=-1>
-"
-            )
-            .unwrap(),
-            179
+",
         )
+        .unwrap();
+
+        for _ in 0..10 {
+            simulation.step();
+        }
+        assert_eq!(simulation.total_potential_energy(), 179)
     }
 }
