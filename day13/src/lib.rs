@@ -1,19 +1,13 @@
 #![deny(unused_must_use)]
 
-use anyhow::Error;
-use anyhow::{bail, Context, Result};
-use console::{Key, Term};
+use anyhow::{Context, Result};
+use console::Term;
 use intcode_computer::{ExecutionStatus, IntcodeComputer};
-use itertools::Itertools;
-use log::debug;
-use std::collections::HashMap;
+use std::cmp;
 use std::convert::TryFrom;
-use std::io::{stdin, Read, Write};
 use std::iter::FromIterator;
-use std::ptr::write;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::thread;
 use std::time::Duration;
-use std::{io, thread};
 
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
 enum Tile {
@@ -43,8 +37,6 @@ impl From<i64> for Tile {
     }
 }
 
-type Coord = (isize, isize);
-
 pub fn part_1(input: &str) -> Result<usize> {
     let program = IntcodeComputer::parse_program(input)?;
     let mut screen = IntcodeComputer::new(program);
@@ -63,7 +55,7 @@ pub fn part_1(input: &str) -> Result<usize> {
 }
 
 pub fn part_2(input: &str) -> Result<()> {
-    let mut program = IntcodeComputer::parse_program(input)?;
+    let program = IntcodeComputer::parse_program(&input)?;
     let mut game = IntcodeComputer::new(program);
     let mut score = 0;
     // PLAY FOR FREE
@@ -74,28 +66,21 @@ pub fn part_2(input: &str) -> Result<()> {
     let out = Term::stdout();
     assert!(out.is_term());
 
-    let (send, rvc) = channel();
+    let mut last_puck_position = (0, 0);
+    let mut last_ball_position = (0, 0);
 
-    let t_out = out.clone();
-
-    let t = std::thread::spawn(move || 'outer: loop {
-        t_out.clear_screen().unwrap();
-        t_out.write_line(&format!("SCORE: {}", score)).unwrap();
-
-        let mut v = vec![0];
-
-        let v = if let Ok(k) = rvc.try_recv() {
-            let inner = match k {
-                Key::ArrowLeft => -1,
-                Key::ArrowRight => 1,
-                _ => 0,
-            };
-            vec![inner]
-        } else {
-            vec![0]
+    'outer: loop {
+        let input = match last_puck_position.0.cmp(&last_ball_position.0) {
+            cmp::Ordering::Greater => vec![-1],
+            cmp::Ordering::Less => vec![1],
+            cmp::Ordering::Equal => vec![0],
         };
 
-        game.write_to_input(v)
+        out.clear_screen()?;
+        out.move_cursor_to(0, 0)?;
+        out.write_line(&format!("SCORE: {}", score))?;
+
+        game.write_to_input(input)
             .context("Failed to write to input")
             .unwrap();
 
@@ -131,6 +116,14 @@ pub fn part_2(input: &str) -> Result<()> {
                 continue;
             }
 
+            if let Tile::Ball = t {
+                last_ball_position = (x, y);
+            }
+
+            if let Tile::HorizontalPaddle = t {
+                last_puck_position = (x, y);
+            }
+
             // It's only safe to cast now since -1 positions have been dealt with
             grid[y as usize][x as usize] = match t {
                 Tile::Empty => ' ',
@@ -144,16 +137,11 @@ pub fn part_2(input: &str) -> Result<()> {
 
         for line in grid.iter() {
             let line = String::from_iter(line.iter());
-            t_out.write_line(&line).unwrap();
+            out.write_line(&line)?;
         }
 
-        t_out.flush().unwrap();
-
-        thread::sleep(Duration::from_millis(100))
-    });
-
-    'io: loop {
-        send.send(out.read_key()?)?
+        thread::sleep(Duration::from_millis(10))
     }
+
     Ok(())
 }
