@@ -1,6 +1,6 @@
 #![deny(unused_must_use)]
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use console::Term;
 use intcode_computer::{ExecutionStatus, IntcodeComputer};
 use std::cmp;
@@ -54,17 +54,22 @@ pub fn part_1(input: &str) -> Result<usize> {
     Ok(tiles.iter().filter(|(_, t)| *t == Tile::Block).count())
 }
 
-pub fn part_2(input: &str) -> Result<()> {
+pub fn part_2(input: &str, interactive: bool) -> Result<i64> {
     let program = IntcodeComputer::parse_program(&input)?;
     let mut game = IntcodeComputer::new(program);
     let mut score = 0;
     // PLAY FOR FREE
     game.set_addr(0, 2)?;
 
-    let mut grid = [[' '; 50]; 40];
+    let mut grid = vec![vec![' '; 50]; 40];
 
-    let out = Term::stdout();
-    assert!(out.is_term());
+    let out = if interactive {
+        let t = Term::stdout();
+        assert!(t.is_term());
+        Some(t)
+    } else {
+        None
+    };
 
     let mut last_puck_position = (0, 0);
     let mut last_ball_position = (0, 0);
@@ -76,9 +81,14 @@ pub fn part_2(input: &str) -> Result<()> {
             cmp::Ordering::Equal => vec![0],
         };
 
-        out.clear_screen()?;
-        out.move_cursor_to(0, 0)?;
-        out.write_line(&format!("SCORE: {}", score))?;
+        if interactive {
+            out.as_ref()
+                .expect("Terminal exists when interactive")
+                .clear_screen()?;
+            out.as_ref()
+                .expect("Terminal exists when interactive")
+                .write_line(&format!("SCORE: {}", score))?;
+        }
 
         game.write_to_input(input)
             .context("Failed to write to input")
@@ -87,8 +97,8 @@ pub fn part_2(input: &str) -> Result<()> {
         'inner: loop {
             let status = game.step().unwrap();
             match status {
-                ExecutionStatus::NeedInput => break,
-                ExecutionStatus::Halted => break,
+                ExecutionStatus::NeedInput => break 'inner,
+                ExecutionStatus::Halted => break 'inner,
                 ExecutionStatus::Done => {}
             }
         }
@@ -121,6 +131,9 @@ pub fn part_2(input: &str) -> Result<()> {
             }
 
             if let Tile::HorizontalPaddle = t {
+                if last_ball_position == (x, y) {
+                    bail!("Game over");
+                }
                 last_puck_position = (x, y);
             }
 
@@ -132,16 +145,23 @@ pub fn part_2(input: &str) -> Result<()> {
                 Tile::HorizontalPaddle => '_',
                 Tile::Ball => '@',
                 Tile::SegmentDisplay(_) => unreachable!(),
+            };
+        }
+        let blocks_left = grid.iter().flatten().filter(|&&c| c == '*').count();
+
+        if blocks_left == 0 {
+            break 'outer;
+        }
+
+        if interactive {
+            for line in grid.iter() {
+                let line = String::from_iter(line.iter());
+                out.as_ref()
+                    .expect("Terminal exists when interactive")
+                    .write_line(&line)?;
             }
         }
-
-        for line in grid.iter() {
-            let line = String::from_iter(line.iter());
-            out.write_line(&line)?;
-        }
-
-        thread::sleep(Duration::from_millis(10))
     }
 
-    Ok(())
+    Ok(score)
 }
