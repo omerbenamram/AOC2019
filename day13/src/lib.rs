@@ -73,7 +73,7 @@ pub fn part_2(input: &str, interactive: bool) -> Result<i64> {
 
     let mut last_puck_position = (0, 0);
     let mut last_ball_position = (0, 0);
-    let mut blocks_left = None;
+    let mut blocks_left = 0;
     let mut input = [0_i64; 1];
     let mut output = Vec::with_capacity(100);
 
@@ -110,59 +110,50 @@ pub fn part_2(input: &str, interactive: bool) -> Result<i64> {
             output.push(i)
         }
 
-        let mut tiles = vec![];
+        let mut tiles_reader = output.chunks_exact(3);
 
-        for tile in output.chunks_exact(3) {
-            let (x, y, t) = (tile[0] as isize, tile[1] as isize, tile[2]);
-            tiles.push(((x, y), Tile::try_from(t).unwrap()));
+        for tile in tiles_reader.by_ref() {
+            let (x, y, t) = (tile[0], tile[1], Tile::from(tile[2]));
+
+            match (x, y, t) {
+                (-1, 0, Tile::SegmentDisplay(s)) => score = s,
+                (-1, 0, _) => {}
+                (x, y, Tile::Empty) if grid[y as usize][x as usize] == '*' => {
+                    blocks_left -= 1;
+                }
+                (x, y, Tile::Block) => blocks_left += 1,
+                (x, y, Tile::Ball) => {
+                    last_ball_position = (x, y);
+                }
+                (x, y, Tile::HorizontalPaddle) => {
+                    if last_ball_position == (x, y) {
+                        bail!("Game over");
+                    }
+                    last_puck_position = (x, y);
+                }
+                _ => {}
+            }
+
+            if x > 0 && y > 0 {
+                // It's only safe to cast now since -1 positions have been dealt with
+                grid[y as usize][x as usize] = match t {
+                    Tile::Empty => ' ',
+                    Tile::Wall => '^',
+                    Tile::Block => '*',
+                    Tile::HorizontalPaddle => '_',
+                    Tile::Ball => '@',
+                    Tile::SegmentDisplay(_) => unreachable!(),
+                };
+            }
         }
 
-        if blocks_left.is_none() {
-            let count = tiles.iter().filter(|(_, t)| *t == Tile::Block).count();
-            blocks_left = Some(count);
-        }
-
-        for tile in tiles.iter() {
-            let ((x, y), t) = (tile.0, tile.1);
-
-            if ((x, y)) == ((-1, 0)) {
-                if let Tile::SegmentDisplay(s) = t {
-                    score = s
-                }
-                continue;
-            }
-
-            if let Tile::Empty = t {
-                if grid[y as usize][x as usize] == '*' {
-                    blocks_left = Some(blocks_left.as_ref().unwrap().saturating_sub(1));
-                }
-            }
-
-            if let Tile::Ball = t {
-                last_ball_position = (x, y);
-            }
-
-            if let Tile::HorizontalPaddle = t {
-                if last_ball_position == (x, y) {
-                    bail!("Game over");
-                }
-                last_puck_position = (x, y);
-            }
-
-            // It's only safe to cast now since -1 positions have been dealt with
-            grid[y as usize][x as usize] = match t {
-                Tile::Empty => ' ',
-                Tile::Wall => '^',
-                Tile::Block => '*',
-                Tile::HorizontalPaddle => '_',
-                Tile::Ball => '@',
-                Tile::SegmentDisplay(_) => unreachable!(),
-            };
+        if !tiles_reader.remainder().is_empty() {
+            bail!("Input alignment error");
         }
 
         output.truncate(0);
 
-        if *blocks_left.as_ref().unwrap() == 0 {
+        if blocks_left == 0 {
             break 'outer;
         }
 
