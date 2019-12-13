@@ -73,12 +73,15 @@ pub fn part_2(input: &str, interactive: bool) -> Result<i64> {
 
     let mut last_puck_position = (0, 0);
     let mut last_ball_position = (0, 0);
+    let mut blocks_left = None;
+    let mut input = [0_i64; 1];
+    let mut output = Vec::with_capacity(100);
 
     'outer: loop {
-        let input = match last_puck_position.0.cmp(&last_ball_position.0) {
-            cmp::Ordering::Greater => vec![-1],
-            cmp::Ordering::Less => vec![1],
-            cmp::Ordering::Equal => vec![0],
+        input[0] = match last_puck_position.0.cmp(&last_ball_position.0) {
+            cmp::Ordering::Greater => -1,
+            cmp::Ordering::Less => 1,
+            cmp::Ordering::Equal => 0,
         };
 
         if interactive {
@@ -90,7 +93,7 @@ pub fn part_2(input: &str, interactive: bool) -> Result<i64> {
                 .write_line(&format!("SCORE: {}", score))?;
         }
 
-        game.write_to_input(input)
+        game.write_to_input(&input)
             .context("Failed to write to input")
             .unwrap();
 
@@ -103,8 +106,6 @@ pub fn part_2(input: &str, interactive: bool) -> Result<i64> {
             }
         }
 
-        let mut output = vec![];
-
         while let Ok(i) = game.read_from_output() {
             output.push(i)
         }
@@ -116,6 +117,11 @@ pub fn part_2(input: &str, interactive: bool) -> Result<i64> {
             tiles.push(((x, y), Tile::try_from(t).unwrap()));
         }
 
+        if blocks_left.is_none() {
+            let count = tiles.iter().filter(|(_, t)| *t == Tile::Block).count();
+            blocks_left = Some(count);
+        }
+
         for tile in tiles.iter() {
             let ((x, y), t) = (tile.0, tile.1);
 
@@ -124,6 +130,12 @@ pub fn part_2(input: &str, interactive: bool) -> Result<i64> {
                     score = s
                 }
                 continue;
+            }
+
+            if let Tile::Empty = t {
+                if grid[y as usize][x as usize] == '*' {
+                    blocks_left = Some(blocks_left.as_ref().unwrap().saturating_sub(1));
+                }
             }
 
             if let Tile::Ball = t {
@@ -147,9 +159,10 @@ pub fn part_2(input: &str, interactive: bool) -> Result<i64> {
                 Tile::SegmentDisplay(_) => unreachable!(),
             };
         }
-        let blocks_left = grid.iter().flatten().filter(|&&c| c == '*').count();
 
-        if blocks_left == 0 {
+        output.truncate(0);
+
+        if *blocks_left.as_ref().unwrap() == 0 {
             break 'outer;
         }
 
@@ -160,6 +173,8 @@ pub fn part_2(input: &str, interactive: bool) -> Result<i64> {
                     .expect("Terminal exists when interactive")
                     .write_line(&line)?;
             }
+
+            thread::sleep(Duration::from_millis(10));
         }
     }
 

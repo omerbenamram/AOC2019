@@ -129,6 +129,7 @@ impl IntcodeComputer {
             .collect::<Result<Vec<i64>>>()
     }
 
+    #[inline(always)]
     pub fn get(&self, i: Address) -> Result<i64> {
         if i < 0 {
             bail!("Cannot access memory at a negative offset `0x{:08x}`", i);
@@ -165,9 +166,9 @@ impl IntcodeComputer {
         Ok(())
     }
 
-    pub fn write_to_input(&mut self, value: Vec<i64>) -> Result<()> {
+    pub fn write_to_input(&mut self, value: &[i64]) -> Result<()> {
         for i in value {
-            self.io.input_write(i)?;
+            self.io.input_write(*i)?;
         }
 
         Ok(())

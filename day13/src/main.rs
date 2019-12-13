@@ -13,8 +13,8 @@ fn main() -> Result<()> {
         .context("Failed to read input from stdin")?;
 
     println!("Part 1 - {}", part_1(&input)?);
-    let t = Instant::now();
-    println!("Part 2 - {} in {:?}", part_2(&input, false)?, t.elapsed());
+    let now = Instant::now();
+    println!("Part 2: {} in {:?}", part_2(&input, false)?, now.elapsed());
 
     Ok(())
 }
